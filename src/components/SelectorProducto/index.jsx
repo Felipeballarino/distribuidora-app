@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Plus, Minus, ShoppingCart, ArrowRight, User, X } from 'lucide-react'
+import { Search, Plus, Minus, ShoppingCart, ArrowRight, User, X, Percent } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProductos } from '../../hooks/useProductos'
 import usePedidoStore from '../../store/pedidoStore'
@@ -17,31 +17,44 @@ export default function SelectorProducto() {
     nuevoPedido: s.nuevoPedido,
   }))
 
-  const [cantidades, setCantidades] = useState({})
-  const [inputValues, setInputValues] = useState({})
+  // unidades: cantidad de piezas (para todos los productos)
+  const [unidades, setUnidades] = useState({})
+  // pesos: peso total en kg (solo para productos con unidad_medida = 'kg')
+  const [pesos, setPesos] = useState({})
+  // markups: porcentaje de recargo sobre el costo (0 = sin recargo)
+  const [markups, setMarkups] = useState({})
   const [agregados, setAgregados] = useState({})
 
-  const getCantidad = (cod) => cantidades[cod] ?? 1
-  const getInputValue = (cod) => inputValues[cod] ?? getCantidad(cod)
+  const getUnidades = (cod) => unidades[cod] ?? 1
+  const getPeso = (cod) => pesos[cod] ?? 1.0
+  const getMarkup = (cod) => markups[cod] ?? 0
 
-  const cambiarCantidad = (cod, delta, unidad) => {
-    const paso = unidad === 'kg' ? 0.5 : 1
-    setCantidades((prev) => ({
+  const calcularPrecioVenta = (producto, markupPct) => {
+    const neto = producto.precio_neto * (1 + markupPct / 100)
+    return neto * 1.21
+  }
+
+  const cambiarUnidades = (cod, delta) => {
+    setUnidades((prev) => ({ ...prev, [cod]: Math.max(1, (prev[cod] ?? 1) + delta) }))
+  }
+
+  const cambiarPeso = (cod, delta) => {
+    setPesos((prev) => ({
       ...prev,
-      [cod]: Math.max(paso, (prev[cod] ?? 1) + delta * paso),
+      [cod]: Math.max(0.1, parseFloat(((prev[cod] ?? 1.0) + delta).toFixed(1))),
     }))
   }
 
   const manejarAgregar = (producto) => {
-    const cantidad = getCantidad(producto.cod_articulo)
-    agregarItem(producto, cantidad)
-    setAgregados((prev) => ({ ...prev, [producto.cod_articulo]: true }))
-    setTimeout(() => {
-      setAgregados((prev) => ({ ...prev, [producto.cod_articulo]: false }))
-    }, 1000)
+    const cod = producto.cod_articulo
+    agregarItem(producto, {
+      unidades: getUnidades(cod),
+      peso_kg: getPeso(cod),
+      markup_pct: getMarkup(cod),
+    })
+    setAgregados((prev) => ({ ...prev, [cod]: true }))
+    setTimeout(() => setAgregados((prev) => ({ ...prev, [cod]: false })), 1000)
   }
-
-  const totalItems = items.reduce((acc, i) => acc + i.cantidad, 0)
 
   return (
     <div className="h-full flex flex-col">
@@ -115,79 +128,140 @@ export default function SelectorProducto() {
         )}
 
         {!cargando && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             <AnimatePresence>
-              {productos.map((producto, i) => (
-                <motion.div
-                  key={producto.cod_articulo}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.02 }}
-                  className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2"
-                >
-                  {/* Nombre y precio */}
-                  <div>
-                    <p className="text-sm font-bold text-texto leading-tight line-clamp-2">
+              {productos.map((producto, i) => {
+                const cod = producto.cod_articulo
+                const esKg = producto.unidad_medida === 'kg'
+                const markup = getMarkup(cod)
+                const precioVenta = calcularPrecioVenta(producto, markup)
+
+                return (
+                  <motion.div
+                    key={cod}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.02 }}
+                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2.5"
+                  >
+                    {/* Nombre */}
+                    <p className="text-sm font-bold text-texto leading-tight line-clamp-2 min-h-[2.5rem]">
                       {producto.denominacion}
                     </p>
-                    <p className="text-base font-extrabold text-texto font-mono mt-1">
-                      {formatearPrecio(producto.precio_con_iva)}
-                    </p>
-                    <p className="text-xs text-texto-suave">{producto.unidad_medida}</p>
-                  </div>
 
-                  {/* Control de cantidad */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => cambiarCantidad(producto.cod_articulo, -1, producto.unidad_medida)}
-                      className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                    >
-                      <Minus className="w-3 h-3 text-texto" />
-                    </button>
-                    <input
-                      type="number"
-                      min={producto.unidad_medida === 'kg' ? '0.1' : '1'}
-                      step={producto.unidad_medida === 'kg' ? '0.1' : '1'}
-                      value={getInputValue(producto.cod_articulo)}
-                      onChange={(e) => {
-                        const raw = e.target.value
-                        setInputValues((prev) => ({ ...prev, [producto.cod_articulo]: raw }))
-                        const val = parseFloat(raw)
-                        if (!isNaN(val) && val > 0) {
-                          setCantidades((prev) => ({ ...prev, [producto.cod_articulo]: val }))
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const val = parseFloat(e.target.value)
-                        const fallback = producto.unidad_medida === 'kg' ? 0.5 : 1
-                        const final = (!isNaN(val) && val > 0) ? val : fallback
-                        setCantidades((prev) => ({ ...prev, [producto.cod_articulo]: final }))
-                        setInputValues((prev) => ({ ...prev, [producto.cod_articulo]: final }))
-                      }}
-                      className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5
-                                 focus:outline-none focus:border-primario"
-                    />
-                    <button
-                      onClick={() => cambiarCantidad(producto.cod_articulo, 1, producto.unidad_medida)}
-                      className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                    >
-                      <Plus className="w-3 h-3 text-texto" />
-                    </button>
-                  </div>
+                    {/* Costo y precio de venta */}
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-xs text-texto-suave">
+                        Costo: <span className="font-mono">{formatearPrecio(producto.precio_con_iva)}</span>
+                      </span>
+                      <span className="text-xs text-texto-suave">{producto.unidad_medida}</span>
+                    </div>
 
-                  {/* Botón agregar */}
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => manejarAgregar(producto)}
-                    className={`w-full py-1.5 rounded-lg font-bold text-sm transition-colors
-                      ${agregados[producto.cod_articulo]
-                        ? 'bg-secundario text-white'
-                        : 'bg-primario text-white hover:bg-blue-700'}`}
-                  >
-                    {agregados[producto.cod_articulo] ? '✓' : 'Agregar'}
-                  </motion.button>
-                </motion.div>
-              ))}
+                    {/* Campo % recargo */}
+                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5">
+                      <Percent className="w-3.5 h-3.5 text-texto-suave shrink-0" />
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={markup === 0 ? '' : markup}
+                        placeholder="0"
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          setMarkups((prev) => ({
+                            ...prev,
+                            [cod]: isNaN(val) || val < 0 ? 0 : val,
+                          }))
+                        }}
+                        className="w-12 text-center text-sm font-bold font-mono bg-transparent border-none
+                                   focus:outline-none focus:ring-1 focus:ring-primario rounded"
+                      />
+                      <span className="text-xs text-texto-suave">recargo</span>
+                      <span className="ml-auto text-sm font-extrabold font-mono text-primario">
+                        {formatearPrecio(precioVenta)}
+                      </span>
+                    </div>
+
+                    {/* Unidades */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-texto-suave w-14 shrink-0">Unidades</span>
+                      <button
+                        onClick={() => cambiarUnidades(cod, -1)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Minus className="w-3 h-3 text-texto" />
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={getUnidades(cod)}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setUnidades((prev) => ({ ...prev, [cod]: isNaN(val) || val < 1 ? 1 : val }))
+                        }}
+                        className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5
+                                   focus:outline-none focus:border-primario"
+                      />
+                      <button
+                        onClick={() => cambiarUnidades(cod, 1)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Plus className="w-3 h-3 text-texto" />
+                      </button>
+                    </div>
+
+                    {/* Peso total en kg (siempre visible) */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-texto-suave w-14 shrink-0">Peso kg</span>
+                      <button
+                        onClick={() => cambiarPeso(cod, -0.1)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Minus className="w-3 h-3 text-texto" />
+                      </button>
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={getPeso(cod)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value)
+                          setPesos((prev) => ({ ...prev, [cod]: isNaN(val) || val <= 0 ? 0.1 : val }))
+                        }}
+                        className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5
+                                   focus:outline-none focus:border-primario"
+                      />
+                      <button
+                        onClick={() => cambiarPeso(cod, 0.1)}
+                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                      >
+                        <Plus className="w-3 h-3 text-texto" />
+                      </button>
+                    </div>
+
+                    {/* Subtotal preview */}
+                    <div className="text-right text-xs text-texto-suave">
+                      Subtotal:{' '}
+                      <span className="font-mono font-bold text-texto">
+                        {formatearPrecio(precioVenta * (esKg ? getPeso(cod) : getUnidades(cod)))}
+                      </span>
+                    </div>
+
+                    {/* Botón agregar */}
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => manejarAgregar(producto)}
+                      className={`w-full py-1.5 rounded-lg font-bold text-sm transition-colors
+                        ${agregados[cod]
+                          ? 'bg-secundario text-white'
+                          : 'bg-primario text-white hover:bg-blue-700'}`}
+                    >
+                      {agregados[cod] ? '✓ Agregado' : 'Agregar'}
+                    </motion.button>
+                  </motion.div>
+                )
+              })}
             </AnimatePresence>
           </div>
         )}

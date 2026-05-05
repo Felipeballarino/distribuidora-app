@@ -25,32 +25,36 @@ const usePedidoStore = create((set, get) => ({
   },
 
   // Items del pedido
-  agregarItem: (producto, cantidad) => {
+  // unidades: cantidad de piezas (informativo para kg, definitivo para unid)
+  // peso_kg: peso total (solo para productos en kg, es la base del precio)
+  // markup_pct: porcentaje de recargo sobre el precio de costo (ej: 10 = +10%)
+  agregarItem: (producto, { unidades, peso_kg, markup_pct }) => {
+    const cantidad = producto.unidad_medida === 'kg' ? peso_kg : unidades
+    const precio_venta_neto = producto.precio_neto * (1 + markup_pct / 100)
+    const precio_venta_con_iva = precio_venta_neto * 1.21
+
+    const nuevoItem = {
+      cod_articulo: producto.cod_articulo,
+      denominacion: producto.denominacion,
+      unidad_medida: producto.unidad_medida,
+      precio_neto: producto.precio_neto,
+      precio_con_iva: producto.precio_con_iva,
+      precio_venta_neto,
+      precio_venta_con_iva,
+      markup_pct,
+      unidades,
+      peso_kg,
+      cantidad,
+    }
+
     const { items } = get()
     const existente = items.findIndex((i) => i.cod_articulo === producto.cod_articulo)
-
     if (existente >= 0) {
       const nuevosItems = [...items]
-      nuevosItems[existente] = {
-        ...nuevosItems[existente],
-        cantidad: nuevosItems[existente].cantidad + cantidad,
-      }
+      nuevosItems[existente] = nuevoItem
       set({ items: nuevosItems })
     } else {
-      set({
-        items: [
-          ...items,
-          {
-            cod_articulo: producto.cod_articulo,
-            denominacion: producto.denominacion,
-            unidad_medida: producto.unidad_medida,
-            precio_neto: producto.precio_neto,
-            precio_con_iva: producto.precio_con_iva,
-            categoria: producto.categoria,
-            cantidad,
-          },
-        ],
-      })
+      set({ items: [...items, nuevoItem] })
     }
   },
 
@@ -61,7 +65,14 @@ const usePedidoStore = create((set, get) => ({
     }
     set({
       items: get().items.map((i) =>
-        i.cod_articulo === cod_articulo ? { ...i, cantidad } : i
+        i.cod_articulo === cod_articulo
+          ? {
+              ...i,
+              cantidad,
+              // si es kg, sincronizamos peso_kg con la cantidad editada en resumen
+              peso_kg: i.unidad_medida === 'kg' ? cantidad : i.peso_kg,
+            }
+          : i
       ),
     })
   },
@@ -70,12 +81,12 @@ const usePedidoStore = create((set, get) => ({
     set({ items: get().items.filter((i) => i.cod_articulo !== cod_articulo) })
   },
 
-  // Totales calculados
+  // Totales calculados sobre precio de venta (con markup aplicado)
   getTotales: () => {
     const { items } = get()
-    const neto = items.reduce((acc, i) => acc + i.precio_neto * i.cantidad, 0)
+    const neto = items.reduce((acc, i) => acc + i.precio_venta_neto * i.cantidad, 0)
     const iva = items.reduce(
-      (acc, i) => acc + (i.precio_con_iva - i.precio_neto) * i.cantidad,
+      (acc, i) => acc + (i.precio_venta_con_iva - i.precio_venta_neto) * i.cantidad,
       0
     )
     return { neto, iva, total: neto + iva }
