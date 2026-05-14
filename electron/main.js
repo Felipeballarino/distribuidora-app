@@ -43,12 +43,34 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// IPC: Clientes
+// ─── Clientes ────────────────────────────────────────────────────────────────
+
 ipcMain.handle('clientes:buscar', async (_event, termino) => {
   return clientesDB.buscarClientes(termino)
 })
 
-// IPC: Productos
+ipcMain.handle('clientes:listar', async () => {
+  return clientesDB.listarClientes()
+})
+
+ipcMain.handle('clientes:crear', async (_event, datos) => {
+  return clientesDB.crearCliente(datos)
+})
+
+ipcMain.handle('clientes:actualizar', async (_event, id, datos) => {
+  return clientesDB.actualizarCliente(id, datos)
+})
+
+ipcMain.handle('clientes:eliminar', async (_event, id) => {
+  return clientesDB.eliminarCliente(id)
+})
+
+ipcMain.handle('clientes:importar', async (_event, filas) => {
+  return clientesDB.importarClientes(filas)
+})
+
+// ─── Productos / Precios ──────────────────────────────────────────────────────
+
 ipcMain.handle('productos:buscar', async (_event, termino) => {
   return productosDB.buscarProductos(termino)
 })
@@ -57,7 +79,28 @@ ipcMain.handle('productos:porCategoria', async (_event, categoria) => {
   return productosDB.buscarPorCategoria(categoria)
 })
 
-// IPC: Comprobantes
+ipcMain.handle('precios:listar', async () => {
+  return productosDB.listarPrecios()
+})
+
+ipcMain.handle('precios:crear', async (_event, datos) => {
+  return productosDB.crearPrecio(datos)
+})
+
+ipcMain.handle('precios:actualizar', async (_event, id, datos) => {
+  return productosDB.actualizarPrecio(id, datos)
+})
+
+ipcMain.handle('precios:eliminar', async (_event, id) => {
+  return productosDB.eliminarPrecio(id)
+})
+
+ipcMain.handle('precios:importar', async (_event, filas) => {
+  return productosDB.importarPrecios(filas)
+})
+
+// ─── Comprobantes ─────────────────────────────────────────────────────────────
+
 ipcMain.handle('comprobantes:emitir', async (_event, datos) => {
   return comprobantesDB.emitirComprobante(datos)
 })

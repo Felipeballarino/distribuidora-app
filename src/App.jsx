@@ -1,9 +1,13 @@
+import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ShoppingCart, Tag, Users } from 'lucide-react'
 import usePedidoStore from './store/pedidoStore'
 import BuscadorCliente from './components/BuscadorCliente'
 import SelectorProducto from './components/SelectorProducto'
 import ResumenPedido from './components/ResumenPedido'
 import ComprobanteEmitido from './components/ComprobanteEmitido'
+import ListaPrecios from './components/ListaPrecios'
+import ListaClientes from './components/ListaClientes'
 
 const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
 
@@ -19,7 +23,14 @@ const variantes = {
   }),
 }
 
+const variantesFade = {
+  entrar: { opacity: 0, y: 8 },
+  centro: { opacity: 1, y: 0 },
+  salir: { opacity: 0, y: -8 },
+}
+
 export default function App() {
+  const [seccion, setSeccion] = useState('pedido')
   const paso = usePedidoStore((s) => s.paso)
   const direccion = usePedidoStore((s) => s.direccion)
 
@@ -30,47 +41,105 @@ export default function App() {
     emitido: <ComprobanteEmitido />,
   }
 
+  const navItems = [
+    { id: 'pedido', label: 'Nuevo Pedido', icon: ShoppingCart },
+    { id: 'precios', label: 'Lista de Precios', icon: Tag },
+    { id: 'clientes', label: 'Clientes', icon: Users },
+  ]
+
+  const mostrarNavSuperior = paso !== 'emitido' || seccion !== 'pedido'
+
   return (
     <div className="h-screen overflow-hidden bg-fondo flex flex-col">
-      {/* Barra de progreso */}
-      {paso !== 'emitido' && (
-        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 shadow-sm">
-          <span className="text-primario font-bold text-lg">Distribuidora</span>
-          <div className="flex gap-2 ml-4">
+      {/* Header siempre visible */}
+      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 shadow-sm flex-shrink-0">
+        <span className="text-primario font-extrabold text-xl tracking-tight">Distribuidora</span>
+
+        {/* Navegación principal */}
+        <nav className="flex gap-1 ml-2">
+          {navItems.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setSeccion(id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                seccion === id
+                  ? 'bg-primario text-white'
+                  : 'text-texto-suave hover:bg-gray-100'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {/* Indicador de pasos (solo en sección pedido y no en emitido) */}
+        {seccion === 'pedido' && paso !== 'emitido' && (
+          <div className="flex gap-2 ml-auto">
             {['cliente', 'productos', 'resumen'].map((p, i) => (
               <div
                 key={p}
                 className={`flex items-center gap-1 text-sm font-semibold px-3 py-1 rounded-full transition-colors ${
                   PASOS.indexOf(paso) >= i
-                    ? 'bg-primario text-white'
+                    ? 'bg-primario/10 text-primario border border-primario/30'
                     : 'bg-gray-100 text-texto-suave'
                 }`}
               >
-                <span>{i + 1}</span>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                  PASOS.indexOf(paso) >= i ? 'bg-primario text-white' : 'bg-gray-300 text-white'
+                }`}>{i + 1}</span>
                 <span className="hidden sm:inline">
                   {p === 'cliente' ? 'Cliente' : p === 'productos' ? 'Productos' : 'Resumen'}
                 </span>
               </div>
             ))}
           </div>
-        </header>
-      )}
+        )}
+      </header>
 
-      {/* Contenido principal con animación */}
+      {/* Contenido principal */}
       <main className="flex-1 overflow-hidden relative">
-        <AnimatePresence initial={false} custom={direccion} mode="wait">
-          <motion.div
-            key={paso}
-            custom={direccion}
-            variants={variantes}
-            initial="entrar"
-            animate="centro"
-            exit="salir"
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="absolute inset-0 overflow-y-auto"
-          >
-            {componentes[paso]}
-          </motion.div>
+        <AnimatePresence initial={false} mode="wait">
+          {seccion === 'pedido' ? (
+            <AnimatePresence initial={false} custom={direccion} mode="wait" key="pedido">
+              <motion.div
+                key={paso}
+                custom={direccion}
+                variants={variantes}
+                initial="entrar"
+                animate="centro"
+                exit="salir"
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="absolute inset-0 overflow-y-auto"
+              >
+                {componentes[paso]}
+              </motion.div>
+            </AnimatePresence>
+          ) : seccion === 'precios' ? (
+            <motion.div
+              key="precios"
+              variants={variantesFade}
+              initial="entrar"
+              animate="centro"
+              exit="salir"
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 overflow-y-auto"
+            >
+              <ListaPrecios />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="clientes"
+              variants={variantesFade}
+              initial="entrar"
+              animate="centro"
+              exit="salir"
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 overflow-y-auto"
+            >
+              <ListaClientes />
+            </motion.div>
+          )}
         </AnimatePresence>
       </main>
     </div>
