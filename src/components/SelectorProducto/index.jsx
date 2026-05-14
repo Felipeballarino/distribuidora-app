@@ -6,6 +6,7 @@ import usePedidoStore from '../../store/pedidoStore'
 import { formatearPrecio } from '../../lib/utils'
 
 const CATEGORIAS = ['Todos', 'Quesos', 'Manteca', 'Yogures', 'Leche', 'Cremas']
+const MARKUPS_RAPIDOS = [0, 5, 10, 15, 20, 30]
 
 export default function SelectorProducto() {
   const { productos, cargando, categoriaActiva, buscar, cargarPorCategoria } = useProductos()
@@ -17,13 +18,20 @@ export default function SelectorProducto() {
     nuevoPedido: s.nuevoPedido,
   }))
 
-  // unidades: cantidad de piezas (para todos los productos)
   const [unidades, setUnidades] = useState({})
-  // pesos: peso total en kg (solo para productos con unidad_medida = 'kg')
   const [pesos, setPesos] = useState({})
-  // markups: porcentaje de recargo sobre el costo (0 = sin recargo)
   const [markups, setMarkups] = useState({})
   const [agregados, setAgregados] = useState({})
+  // null = sin preset seleccionado (valores mixtos o todos en 0 por defecto)
+  const [markupGlobal, setMarkupGlobal] = useState(null)
+
+  const aplicarMarkupGlobal = (pct) => {
+    setMarkupGlobal(pct)
+    if (pct === null) return
+    const nuevosMaps = {}
+    productos.forEach((p) => { nuevosMaps[p.cod_articulo] = pct })
+    setMarkups((prev) => ({ ...prev, ...nuevosMaps }))
+  }
 
   const getUnidades = (cod) => unidades[cod] ?? 1
   const getPeso = (cod) => pesos[cod] ?? 1.0
@@ -41,7 +49,7 @@ export default function SelectorProducto() {
   const cambiarPeso = (cod, delta) => {
     setPesos((prev) => ({
       ...prev,
-      [cod]: Math.max(0.1, parseFloat(((prev[cod] ?? 1.0) + delta).toFixed(1))),
+      [cod]: Math.max(1, (prev[cod] ?? 1) + delta),
     }))
   }
 
@@ -90,8 +98,41 @@ export default function SelectorProducto() {
           </div>
         </div>
 
+        {/* Recargo global */}
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-semibold text-texto-suave flex items-center gap-1">
+            <Percent className="w-4 h-4" /> Recargo global:
+          </span>
+          {MARKUPS_RAPIDOS.map((pct) => {
+            const activo = markupGlobal === pct
+            return (
+              <label
+                key={pct}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 cursor-pointer select-none
+                  font-semibold text-sm transition-colors
+                  ${activo
+                    ? 'border-primario bg-primario text-white'
+                    : 'border-gray-200 bg-white text-texto-suave hover:border-primario hover:text-primario'}`}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={activo}
+                  onChange={() => aplicarMarkupGlobal(activo ? null : pct)}
+                />
+                {pct === 0 ? 'Sin recargo' : `${pct}%`}
+              </label>
+            )
+          })}
+          {markupGlobal !== null && (
+            <span className="text-xs text-texto-suave italic">
+              Aplicado a todos · podés editar cada uno abajo
+            </span>
+          )}
+        </div>
+
         {/* Búsqueda y filtros */}
-        <div className="mt-4 flex gap-3 flex-wrap">
+        <div className="mt-3 flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 inset-y-0 my-auto w-5 h-5 text-texto-suave" />
             <input
@@ -168,6 +209,7 @@ export default function SelectorProducto() {
                         placeholder="0"
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
+                          setMarkupGlobal(null)
                           setMarkups((prev) => ({
                             ...prev,
                             [cod]: isNaN(val) || val < 0 ? 0 : val,
@@ -215,7 +257,7 @@ export default function SelectorProducto() {
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-texto-suave w-14 shrink-0">Peso kg</span>
                       <button
-                        onClick={() => cambiarPeso(cod, -0.1)}
+                        onClick={() => cambiarPeso(cod, -1)}
                         className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
                       >
                         <Minus className="w-3 h-3 text-texto" />
@@ -233,7 +275,7 @@ export default function SelectorProducto() {
                                    focus:outline-none focus:border-primario"
                       />
                       <button
-                        onClick={() => cambiarPeso(cod, 0.1)}
+                        onClick={() => cambiarPeso(cod, 1)}
                         className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
                       >
                         <Plus className="w-3 h-3 text-texto" />

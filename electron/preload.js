@@ -21,5 +21,6 @@ contextBridge.exposeInMainWorld('api', {
   comprobantes: {
     emitir: (datos) => ipcRenderer.invoke('comprobantes:emitir', datos),
     ultimoNumero: () => ipcRenderer.invoke('comprobantes:ultimo'),
+    listar: () => ipcRenderer.invoke('comprobantes:listar'),
   },
 })

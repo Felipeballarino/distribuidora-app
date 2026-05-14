@@ -108,3 +108,7 @@ ipcMain.handle('comprobantes:emitir', async (_event, datos) => {
 ipcMain.handle('comprobantes:ultimo', async () => {
   return comprobantesDB.obtenerUltimoNumero()
 })
+
+ipcMain.handle('comprobantes:listar', async () => {
+  return comprobantesDB.listarComprobantes()
+})

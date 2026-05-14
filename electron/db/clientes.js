@@ -12,7 +12,7 @@ function buscarClientes(termino) {
       ORDER BY razon_social
       LIMIT 20
     `)
-    .all(busqueda, busqueda)
+    .all([busqueda, busqueda])
 }
 
 function listarClientes() {
@@ -31,13 +31,13 @@ function crearCliente({ cod_cliente, razon_social, domicilio, condicion_venta, c
   db.prepare(`
     INSERT INTO clientes (cod_cliente, razon_social, domicilio, condicion_venta, cuit)
     VALUES (?, ?, ?, ?, ?)
-  `).run(
+  `).run([
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
     (condicion_venta || 'Contado').trim(),
-    (cuit || '').trim()
-  )
+    (cuit || '').trim(),
+  ])
   return { ok: true }
 }
 
@@ -47,20 +47,20 @@ function actualizarCliente(id, { cod_cliente, razon_social, domicilio, condicion
     UPDATE clientes
     SET cod_cliente=?, razon_social=?, domicilio=?, condicion_venta=?, cuit=?
     WHERE id=?
-  `).run(
+  `).run([
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
     (condicion_venta || 'Contado').trim(),
     (cuit || '').trim(),
-    id
-  )
+    id,
+  ])
   return { ok: true }
 }
 
 function eliminarCliente(id) {
   const db = getDB()
-  db.prepare(`DELETE FROM clientes WHERE id=?`).run(id)
+  db.prepare(`DELETE FROM clientes WHERE id=?`).run([id])
   return { ok: true }
 }
 
@@ -75,13 +75,13 @@ function importarClientes(filas) {
     const cod = String(f['Código'] || f['Codigo'] || f.cod_cliente || '').trim()
     const razon = String(f['Razón Social'] || f['Razon Social'] || f.razon_social || '').trim()
     if (!cod || !razon) continue
-    stmt.run(
+    stmt.run([
       cod,
       razon,
       String(f['Domicilio'] || f.domicilio || '').trim(),
       String(f['Condición de Venta'] || f['Condicion de Venta'] || f.condicion_venta || 'Contado').trim(),
-      String(f['CUIT'] || f.cuit || '').trim()
-    )
+      String(f['CUIT'] || f.cuit || '').trim(),
+    ])
     importados++
   }
   return { importados }

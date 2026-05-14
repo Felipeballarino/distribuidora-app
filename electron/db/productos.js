@@ -13,7 +13,7 @@ function buscarProductos(termino) {
       ORDER BY denominacion
       LIMIT 50
     `)
-    .all(busqueda, busqueda, busqueda)
+    .all([busqueda, busqueda, busqueda])
 }
 
 function buscarPorCategoria(categoria) {
@@ -38,7 +38,7 @@ function buscarPorCategoria(categoria) {
       WHERE activo = 1 AND categoria = ?
       ORDER BY denominacion
     `)
-    .all(categoria)
+    .all([categoria])
 }
 
 function listarPrecios() {
@@ -58,14 +58,14 @@ function crearPrecio({ cod_articulo, denominacion, unidad_medida, precio_neto, p
   db.prepare(`
     INSERT INTO precios (cod_articulo, denominacion, unidad_medida, precio_neto, precio_con_iva, categoria)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
+  `).run([
     cod_articulo.trim(),
     denominacion.trim(),
     (unidad_medida || 'unid').trim(),
     parseFloat(precio_neto),
     parseFloat(precio_con_iva),
-    (categoria || '').trim()
-  )
+    (categoria || '').trim(),
+  ])
   return { ok: true }
 }
 
@@ -75,21 +75,21 @@ function actualizarPrecio(id, { cod_articulo, denominacion, unidad_medida, preci
     UPDATE precios
     SET cod_articulo=?, denominacion=?, unidad_medida=?, precio_neto=?, precio_con_iva=?, categoria=?
     WHERE id=?
-  `).run(
+  `).run([
     cod_articulo.trim(),
     denominacion.trim(),
     (unidad_medida || 'unid').trim(),
     parseFloat(precio_neto),
     parseFloat(precio_con_iva),
     (categoria || '').trim(),
-    id
-  )
+    id,
+  ])
   return { ok: true }
 }
 
 function eliminarPrecio(id) {
   const db = getDB()
-  db.prepare(`DELETE FROM precios WHERE id=?`).run(id)
+  db.prepare(`DELETE FROM precios WHERE id=?`).run([id])
   return { ok: true }
 }
 
@@ -106,14 +106,14 @@ function importarPrecios(filas) {
     if (!cod || !den) continue
     const pNeto = parseFloat(f['Precio Neto'] || f.precio_neto || 0)
     const pIva = parseFloat(f['Precio c/IVA'] || f['Precio con IVA'] || f.precio_con_iva || pNeto * 1.21)
-    stmt.run(
+    stmt.run([
       cod,
       den,
       String(f['Unidad'] || f.unidad_medida || 'unid').trim(),
       pNeto,
       pIva,
-      String(f['Categoría'] || f['Categoria'] || f.categoria || '').trim()
-    )
+      String(f['Categoría'] || f['Categoria'] || f.categoria || '').trim(),
+    ])
     importados++
   }
   return { importados }

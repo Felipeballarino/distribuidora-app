@@ -20,17 +20,25 @@ function emitirComprobante({ cliente, items, totales }) {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
 
-  const resultado = stmt.run(
+  const resultado = stmt.run([
     numero,
     cliente.cod_cliente,
     cliente.razon_social,
     totales.neto,
     totales.iva,
     totales.total,
-    JSON.stringify(items)
-  )
+    JSON.stringify(items),
+  ])
 
   return { id: resultado.lastInsertRowid, numero }
 }
 
-module.exports = { emitirComprobante, obtenerUltimoNumero }
+function listarComprobantes() {
+  const db = getDB()
+  const filas = db
+    .prepare(`SELECT * FROM comprobantes ORDER BY id DESC`)
+    .all()
+  return filas.map((f) => ({ ...f, items: JSON.parse(f.items || '[]') }))
+}
+
+module.exports = { emitirComprobante, obtenerUltimoNumero, listarComprobantes }
