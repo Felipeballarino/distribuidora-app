@@ -1,17 +1,18 @@
 {
   "name": "distribuidora-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Sistema de carga rápida de pedidos — Distribuidora de Lácteos y Alimentos",
   "main": "electron/main.js",
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
-    "build": "vite build && electron-builder",
-    "build:win": "electron-builder --win --x64",
+    "build": "vite build && electron-builder --win --x64",
+    "build:win": "vite build && electron-builder --win --x64",
     "seed": "node --experimental-sqlite scripts/seed.js",
     "electron:rebuild": "echo 'No se requiere rebuild - usando WASM SQLite'",
-    "test": "node --test"
+    "test": "node --test",
+    "build:win32": "vite build && electron-builder --win --ia32"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

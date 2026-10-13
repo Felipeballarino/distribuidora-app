@@ -8,7 +8,6 @@
   "files": [
     "dist/**/*",
     "electron/**/*",
-    "data/**/*",
     "package.json"
   ],
   "win": {
@@ -18,12 +17,10 @@
   },
   "nsis": {
     "oneClick": false,
-    "allowToChangeInstallationDirectory": true
-  },
-  "extraResources": [
-    {
-      "from": "data",
-      "to": "data"
-    }
-  ]
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Distribuidora Pedidos",
+    "deleteAppDataOnUninstall": false
+  }
 }
