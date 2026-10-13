@@ -27,11 +27,16 @@ El operador busca un cliente, selecciona productos con cantidades en kg/unidades
   - `unidad_medida = 'kg'` + `peso_promedio_kg` → piezas: kg = piezas × peso promedio, editable con el peso real.
   - `unidad_medida = 'kg'` sin peso promedio → suelto: solo se cargan kg.
   - **Pesan antes de imprimir**: el kg real se corrige en la carga o en el resumen.
-- **Stock:** opcional. `NULL` = no se controla. Si está cargado, se descuenta al confirmar y superarlo es solo aviso (no bloquea).
+- **Stock (control estricto):** todo producto tiene stock; sin dato = 0 = no se puede vender.
+  No se puede cargar más de lo que hay (se valida en pantalla y otra vez en la transacción al confirmar).
+  El stock está en la unidad en que se cobra (kg o unidades). Cada cambio queda en `movimientos_stock`
+  (inicial, ingreso, venta, ajuste, anulación) y `precios.stock` es el saldo, actualizado en la misma transacción.
+  El stock NO se edita desde el producto ni se pisa al reimportar el Excel (la columna Stock solo vale para productos nuevos).
+  Para cambiarlo: sección Stock (Ingresar mercadería / Ajustar por conteo). Anular un pedido devuelve el stock.
 - Usuarios: el dueño, su padre y operadores con muy poca experiencia (ej. una persona de 45 años que nunca usó computadora).
   Carga de 40–60 clientes por día → priorizar velocidad y teclado.
 - `node-sqlite3-wasm`: usar `db.all/get/run` (los `prepare()` hay que finalizarlos a mano).
-- Tests: `npm test`.
+- Tests: `npm test` (cálculos en `tests/pedido.test.mjs`, base de datos real en `tests/db.test.cjs`).
 
 ---
 

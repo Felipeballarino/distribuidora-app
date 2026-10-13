@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ShoppingCart, Tag, Users, FileText, Settings } from 'lucide-react'
+import { ShoppingCart, Tag, Users, FileText, Settings, Warehouse } from 'lucide-react'
 import usePedidoStore from './store/pedidoStore'
 import BuscadorCliente from './components/BuscadorCliente'
 import SelectorProducto from './components/SelectorProducto'
@@ -10,6 +10,7 @@ import ListaPrecios from './components/ListaPrecios'
 import ListaClientes from './components/ListaClientes'
 import ListaVentas from './components/ListaVentas'
 import Configuracion from './components/Configuracion'
+import ControlStock from './components/ControlStock'
 
 const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
 
@@ -46,6 +47,7 @@ export default function App() {
   const navItems = [
     { id: 'pedido', label: 'Nuevo Pedido', icon: ShoppingCart },
     { id: 'precios', label: 'Lista de Precios', icon: Tag },
+    { id: 'stock', label: 'Stock', icon: Warehouse },
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'ventas', label: 'Ventas', icon: FileText },
     { id: 'config', label: 'Configuración', icon: Settings },
@@ -130,6 +132,18 @@ export default function App() {
               className="absolute inset-0 overflow-y-auto"
             >
               <ListaPrecios />
+            </motion.div>
+          ) : seccion === 'stock' ? (
+            <motion.div
+              key="stock"
+              variants={variantesFade}
+              initial="entrar"
+              animate="centro"
+              exit="salir"
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 overflow-y-auto"
+            >
+              <ControlStock />
             </motion.div>
           ) : seccion === 'clientes' ? (
             <motion.div

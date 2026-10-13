@@ -3,7 +3,7 @@ import { Trash2, ArrowLeft, CheckCircle, User, MapPin, AlertTriangle } from 'luc
 import { motion, AnimatePresence } from 'framer-motion'
 import usePedidoStore from '../../store/pedidoStore'
 import { formatearPrecio } from '../../lib/utils'
-import { parsearNumero, formatearKg, superaStock, itemValido, sufijoUnidad } from '../../lib/pedido'
+import { parsearNumero, superaStock, itemValido, sufijoUnidad, textoStock, actualizarItem as simular } from '../../lib/pedido'
 
 // Input de kg que acepta coma decimal y confirma al salir o con Enter
 function InputKg({ valor, onConfirmar }) {
@@ -29,7 +29,7 @@ function InputKg({ valor, onConfirmar }) {
   )
 }
 
-function Contador({ valor, onCambiar }) {
+function Contador({ valor, onCambiar, maximoAlcanzado }) {
   return (
     <div className="flex items-center gap-1">
       <button
@@ -42,7 +42,8 @@ function Contador({ valor, onCambiar }) {
       <span className="w-10 text-center font-bold font-mono tabular-nums">{valor}</span>
       <button
         onClick={() => onCambiar(valor + 1)}
-        className="w-9 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-lg"
+        disabled={maximoAlcanzado}
+        className="w-9 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-lg disabled:opacity-30"
       >
         +
       </button>
@@ -59,17 +60,28 @@ export default function ResumenPedido() {
   const setComprobanteEmitido = usePedidoStore((s) => s.setComprobanteEmitido)
   const total = usePedidoStore((s) => s.getTotal())
   const hayInvalidos = usePedidoStore((s) => s.hayItemsInvalidos())
-  const haySobreStock = usePedidoStore((s) => s.hayItemsSobreStock())
+  const haySinStock = usePedidoStore((s) => s.hayItemsSinStock())
+  const actualizarStockDisponible = usePedidoStore((s) => s.actualizarStockDisponible)
 
   const [emitiendo, setEmitiendo] = useState(false)
   const [error, setError] = useState(null)
 
   const emitir = async () => {
-    if (emitiendo || items.length === 0 || hayInvalidos) return
+    if (emitiendo || items.length === 0 || hayInvalidos || haySinStock) return
     setEmitiendo(true)
     setError(null)
     try {
       const resultado = await window.api.comprobantes.emitir({ cliente, items, totales: { total } })
+      if (resultado?.ok === false) {
+        if (resultado.error === 'STOCK_INSUFICIENTE') {
+          // Otro pedido se llevó el stock mientras cargábamos: mostrar lo que hay realmente
+          actualizarStockDisponible(resultado.faltantes)
+          setError('El stock cambió mientras cargabas el pedido. Ajustá los productos marcados en rojo.')
+        } else {
+          setError(resultado.error || 'No se pudo guardar el pedido.')
+        }
+        return
+      }
       setComprobanteEmitido(resultado)
     } catch (err) {
       console.error('Error al emitir:', err)
@@ -123,7 +135,7 @@ export default function ResumenPedido() {
             <AnimatePresence initial={false}>
               {items.map((item, idx) => {
                 const invalido = !itemValido(item)
-                const sobreStock = superaStock(item)
+                const sinStock = superaStock(item)
                 return (
                   <motion.div
                     key={item.cod_articulo}
@@ -132,7 +144,7 @@ export default function ResumenPedido() {
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.18 }}
                     className={`grid grid-cols-[1fr_7rem_6rem_8rem_8rem_2.5rem] gap-3 px-4 py-3 items-center border-b border-gray-50
-                      ${invalido ? 'bg-red-50' : idx % 2 === 1 ? 'bg-gray-50/40' : ''}`}
+                      ${invalido || sinStock ? 'bg-red-50' : idx % 2 === 1 ? 'bg-gray-50/40' : ''}`}
                   >
                     <div>
                       <p className="font-semibold text-texto leading-tight">{item.denominacion}</p>
@@ -145,9 +157,9 @@ export default function ResumenPedido() {
                           <AlertTriangle className="w-3 h-3" /> Cargá la cantidad o quitalo
                         </p>
                       )}
-                      {sobreStock && (
-                        <p className="flex items-center gap-1 text-xs font-bold text-amber-700 mt-0.5">
-                          <AlertTriangle className="w-3 h-3" /> Supera el stock cargado ({item.stock})
+                      {sinStock && (
+                        <p className="flex items-center gap-1 text-xs font-bold text-peligro mt-0.5">
+                          <AlertTriangle className="w-3 h-3" /> Solo hay {textoStock(item)}
                         </p>
                       )}
                     </div>
@@ -159,6 +171,7 @@ export default function ResumenPedido() {
                       ) : (
                         <Contador
                           valor={item.unidades}
+                          maximoAlcanzado={superaStock(simular(item, { unidades: item.unidades + 1 }))}
                           onCambiar={(u) => actualizarItem(item.cod_articulo, { unidades: Math.max(0, u) })}
                         />
                       )}
@@ -205,10 +218,10 @@ export default function ResumenPedido() {
           <span className="text-3xl font-extrabold font-mono text-texto tabular-nums">{formatearPrecio(total)}</span>
         </div>
 
-        {haySobreStock && !hayInvalidos && (
-          <p className="flex items-center gap-2 text-sm font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mb-3">
+        {haySinStock && (
+          <p className="flex items-center gap-2 text-sm font-bold text-peligro bg-red-50 rounded-xl px-4 py-2.5 mb-3">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            Algunos productos superan el stock cargado. Igual podés emitir el pedido.
+            Hay productos sin stock suficiente. Bajá la cantidad o quitalos para confirmar.
           </p>
         )}
         {hayInvalidos && (
@@ -224,7 +237,7 @@ export default function ResumenPedido() {
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={emitir}
-          disabled={emitiendo || items.length === 0 || hayInvalidos}
+          disabled={emitiendo || items.length === 0 || hayInvalidos || haySinStock}
           className="w-full py-4 bg-secundario text-white rounded-2xl text-xl font-extrabold
                      flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed
                      hover:bg-green-700 transition-colors"

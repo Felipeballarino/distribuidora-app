@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { formatearPrecio } from '../../lib/utils'
 import {
   tipoCarga, costoDe, precioVenta, crearItem, kgEstimados, parsearNumero,
-  formatearKg, itemValido, superaStock,
+  formatearKg, superaStock, puedeAgregarse, stockDisponible, textoStock,
 } from '../../lib/pedido'
 
 // Texto que se muestra en el input de kg ("45,0")
@@ -55,8 +55,12 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
     markup_pct: margen,
   }
   const vistaPrevia = useMemo(() => crearItem(producto, carga), [producto, unidades, kgMostrados, kgEditado, margen]) // eslint-disable-line react-hooks/exhaustive-deps
-  const puedeAgregar = itemValido(vistaPrevia)
-  const avisoStock = superaStock(vistaPrevia)
+  const stock = stockDisponible(producto)
+  const sinStock = stock <= 0
+  const puedeAgregar = puedeAgregarse(vistaPrevia)
+  const faltaStock = !sinStock && superaStock(vistaPrevia)
+  // ¿Sumar una pieza/unidad más superaría el stock?
+  const masUnaSupera = superaStock(crearItem(producto, { ...carga, unidades: unidades + 1 }))
 
   const cambiarUnidades = (delta) => setUnidadesTxt(String(Math.max(0, Math.round(unidades + delta))))
   const cambiarKg = (delta) => {
@@ -85,7 +89,7 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(indice * 0.02, 0.3) }}
       className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col
-        ${itemEnPedido ? 'border-secundario/40' : 'border-gray-100'}`}
+        ${itemEnPedido ? 'border-secundario/40' : 'border-gray-100'} ${sinStock ? 'opacity-60' : ''}`}
     >
       {/* Encabezado */}
       <div className="px-4 pt-4 pb-2">
@@ -100,11 +104,10 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
           {producto.marca && <span className="text-sm text-texto-suave">{producto.marca}</span>}
-          {producto.stock != null && (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-texto-suave">
-              Stock: {tipo === 'unidad' ? producto.stock : formatearKg(producto.stock)}
-            </span>
-          )}
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full
+            ${sinStock ? 'bg-red-100 text-peligro' : 'bg-emerald-100 text-emerald-700'}`}>
+            {sinStock ? 'Sin stock' : `Stock: ${textoStock(producto)}`}
+          </span>
           {itemEnPedido && (
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-secundario">
               En el pedido
@@ -157,9 +160,10 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
                 onChange={(e) => setUnidadesTxt(e.target.value.replace(/[^\d]/g, ''))}
                 onKeyDown={alPresionarTecla}
                 onFocus={(e) => e.target.select()}
+                disabled={sinStock}
                 className={claseInput}
               />
-              <BotonPaso label="Sumar" onClick={() => cambiarUnidades(1)}>
+              <BotonPaso label="Sumar" onClick={() => cambiarUnidades(1)} disabled={sinStock || masUnaSupera}>
                 <Plus className="w-5 h-5 text-texto" />
               </BotonPaso>
             </div>
@@ -200,18 +204,19 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
                 }}
                 onKeyDown={alPresionarTecla}
                 onFocus={(e) => e.target.select()}
+                disabled={sinStock}
                 className={`${claseInput} ${tipo === 'piezas' && !kgEditado ? 'text-texto-suave' : ''}`}
               />
-              <BotonPaso label="Sumar kilos" onClick={() => cambiarKg(0.5)}>
+              <BotonPaso label="Sumar kilos" onClick={() => cambiarKg(0.5)} disabled={sinStock}>
                 <Plus className="w-5 h-5 text-texto" />
               </BotonPaso>
             </div>
           </div>
         )}
 
-        {avisoStock && (
-          <p className="flex items-center gap-1 text-xs font-bold text-amber-700">
-            <AlertTriangle className="w-3.5 h-3.5" /> Supera el stock cargado
+        {faltaStock && (
+          <p className="flex items-center gap-1 text-sm font-bold text-peligro">
+            <AlertTriangle className="w-4 h-4" /> Solo hay {textoStock(producto)}
           </p>
         )}
       </div>
@@ -230,7 +235,7 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
             disabled:bg-gray-200 disabled:text-texto-suave disabled:cursor-not-allowed
             ${agregado ? 'bg-secundario text-white' : 'bg-primario text-white hover:bg-blue-700'}`}
         >
-          {agregado ? <><Check className="w-5 h-5" /> Listo</> : itemEnPedido ? 'Actualizar' : 'Agregar'}
+          {agregado ? <><Check className="w-5 h-5" /> Listo</> : sinStock ? 'Sin stock' : itemEnPedido ? 'Actualizar' : 'Agregar'}
         </motion.button>
       </div>
     </motion.div>

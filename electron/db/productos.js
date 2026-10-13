@@ -1,9 +1,13 @@
 const { getDB } = require('./connection')
+const { registrarMovimiento } = require('./stock')
 
 // Nota: en la tabla `precios`, la columna `precio_neto` es el COSTO del producto.
 // El precio de venta se calcula en cada pedido aplicando el margen elegido.
 // `precio_con_iva` quedó de una versión anterior (NOT NULL): se guarda igual al costo.
 // No se muestra IVA en ningún lado.
+//
+// STOCK: no se edita desde acá. Solo se carga un stock inicial al crear el producto.
+// Después cambia únicamente por movimientos (ventas, ingresos, ajustes, anulaciones): ver stock.js.
 
 const COLUMNAS = `id, cod_articulo, denominacion, marca, unidad_medida, peso_promedio_kg,
                   precio_neto, stock, categoria`
@@ -75,18 +79,32 @@ function valoresProducto(datos) {
     unidad === 'kg' ? aNumeroONull(datos.peso_promedio_kg) : null,
     costo,
     costo,
-    aNumeroONull(datos.stock),
     String(datos.categoria || '').trim(),
   ]
 }
 
+const INSERT_PRODUCTO = `INSERT INTO precios (cod_articulo, denominacion, marca, unidad_medida, peso_promedio_kg,
+                          precio_neto, precio_con_iva, categoria, stock)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+
 function crearPrecio(datos) {
-  getDB().run(
-    `INSERT INTO precios (cod_articulo, denominacion, marca, unidad_medida, peso_promedio_kg,
-                          precio_neto, precio_con_iva, stock, categoria)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    valoresProducto(datos)
-  )
+  const db = getDB()
+  const valores = valoresProducto(datos)
+  if (db.get(`SELECT 1 FROM precios WHERE cod_articulo = ?`, [valores[0]])) {
+    return { ok: false, error: `Ya existe un producto con el código ${valores[0]}` }
+  }
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    db.run(INSERT_PRODUCTO, valores)
+    const inicial = aNumeroONull(datos.stock)
+    if (inicial > 0) {
+      registrarMovimiento(db, { cod_articulo: valores[0], tipo: 'inicial', cantidad: inicial, nota: 'Stock inicial' })
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
   return { ok: true }
 }
 
@@ -94,7 +112,7 @@ function actualizarPrecio(id, datos) {
   getDB().run(
     `UPDATE precios
      SET cod_articulo=?, denominacion=?, marca=?, unidad_medida=?, peso_promedio_kg=?,
-         precio_neto=?, precio_con_iva=?, stock=?, categoria=?,
+         precio_neto=?, precio_con_iva=?, categoria=?,
          fecha_actualizacion=CURRENT_TIMESTAMP
      WHERE id=?`,
     [...valoresProducto(datos), id]
@@ -108,10 +126,13 @@ function eliminarPrecio(id) {
 }
 
 // Importa desde Excel. Si el código ya existe, ACTUALIZA el producto (no lo duplica).
+// La columna Stock solo se usa como stock inicial de productos NUEVOS:
+// reimportar la lista de precios nunca pisa el stock que lleva el sistema.
 function importarPrecios(filas) {
   const db = getDB()
   let importados = 0
-  db.exec('BEGIN')
+  let nuevos = 0
+  db.exec('BEGIN IMMEDIATE')
   try {
     for (const f of filas) {
       const datos = {
@@ -121,23 +142,26 @@ function importarPrecios(filas) {
         unidad_medida: f['Unidad'] ?? f['Se vende por'] ?? f.unidad_medida,
         peso_promedio_kg: f['Peso promedio'] ?? f['Peso promedio (kg)'] ?? f.peso_promedio_kg,
         precio_neto: f['Costo'] ?? f['Precio'] ?? f['Precio Neto'] ?? f.precio_neto,
-        stock: f['Stock'] ?? f.stock,
         categoria: f['Categoría'] ?? f['Categoria'] ?? f.categoria,
       }
       const valores = valoresProducto(datos)
       if (!valores[0] || !valores[1]) continue
-      db.run(
-        `INSERT INTO precios (cod_articulo, denominacion, marca, unidad_medida, peso_promedio_kg,
-                              precio_neto, precio_con_iva, stock, categoria)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(cod_articulo) DO UPDATE SET
-           denominacion=excluded.denominacion, marca=excluded.marca,
-           unidad_medida=excluded.unidad_medida, peso_promedio_kg=excluded.peso_promedio_kg,
-           precio_neto=excluded.precio_neto, precio_con_iva=excluded.precio_con_iva,
-           stock=excluded.stock, categoria=excluded.categoria, activo=1,
-           fecha_actualizacion=CURRENT_TIMESTAMP`,
-        valores
-      )
+      const existe = !!db.get(`SELECT 1 FROM precios WHERE cod_articulo = ?`, [valores[0]])
+      if (existe) {
+        db.run(
+          `UPDATE precios SET denominacion=?, marca=?, unidad_medida=?, peso_promedio_kg=?,
+             precio_neto=?, precio_con_iva=?, categoria=?, activo=1, fecha_actualizacion=CURRENT_TIMESTAMP
+           WHERE cod_articulo=?`,
+          [...valores.slice(1), valores[0]]
+        )
+      } else {
+        db.run(INSERT_PRODUCTO, valores)
+        const inicial = aNumeroONull(f['Stock'] ?? f.stock)
+        if (inicial > 0) {
+          registrarMovimiento(db, { cod_articulo: valores[0], tipo: 'inicial', cantidad: inicial, nota: 'Stock inicial (Excel)' })
+        }
+        nuevos++
+      }
       importados++
     }
     db.exec('COMMIT')
@@ -145,7 +169,7 @@ function importarPrecios(filas) {
     db.exec('ROLLBACK')
     throw error
   }
-  return { importados }
+  return { importados, nuevos }
 }
 
 module.exports = {

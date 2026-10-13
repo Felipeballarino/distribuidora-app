@@ -2,11 +2,12 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   tipoCarga, precioVenta, crearItem, actualizarItem, totalPedido, parsearNumero,
-  cantidadCobrada, superaStock, precioDeItem, subtotalItem,
+  cantidadCobrada, superaStock, precioDeItem, subtotalItem, puedeAgregarse,
 } from '../src/lib/pedido.js'
 
 const barra = { cod_articulo: '2', denominacion: 'Queso barra', unidad_medida: 'kg', peso_promedio_kg: 4.5, precio_neto: 4000, stock: 50 }
 const manteca = { cod_articulo: 'M1', denominacion: 'Manteca 200 g', unidad_medida: 'unid', precio_neto: 850, stock: null }
+const mantecaConStock = { ...manteca, stock: 100 }
 const fraccionado = { cod_articulo: 'Q9', denominacion: 'Cremoso fraccionado', unidad_medida: 'kg', peso_promedio_kg: null, precio_neto: 4200 }
 
 test('tipo de carga según producto', () => {
@@ -44,7 +45,7 @@ test('piezas: sin peso real, cambiar unidades recalcula kg', () => {
 })
 
 test('unidad: no tiene kg (sin el "1 kg" falso)', () => {
-  const i = crearItem(manteca, { unidades: 12, peso_kg: 1 })
+  const i = crearItem(mantecaConStock, { unidades: 12, peso_kg: 1 })
   assert.equal(i.peso_kg, 0)
   assert.equal(i.subtotal, 10200)
 })
@@ -63,13 +64,20 @@ test('cambiar margen recalcula precio y subtotal', () => {
 })
 
 test('total del pedido sin IVA', () => {
-  const items = [crearItem(barra, { unidades: 10, markup_pct: 25 }), crearItem(manteca, { unidades: 12 })]
+  const items = [crearItem(barra, { unidades: 10, markup_pct: 25 }), crearItem(mantecaConStock, { unidades: 12 })]
   assert.equal(totalPedido(items), 235200)
 })
 
-test('stock: null no se controla; superarlo es solo aviso', () => {
-  assert.equal(superaStock(crearItem(manteca, { unidades: 999 })), false)
-  assert.equal(superaStock(crearItem(barra, { unidades: 20 })), true)
+test('stock: sin dato es 0 y no se puede agregar', () => {
+  const i = crearItem(manteca, { unidades: 1 })
+  assert.equal(i.stock, 0)
+  assert.equal(puedeAgregarse(i), false)
+})
+
+test('stock: no se puede pedir más de lo que hay (en kg para productos por kg)', () => {
+  assert.equal(puedeAgregarse(crearItem(barra, { unidades: 11 })), true)   // 49,5 kg de 50
+  assert.equal(puedeAgregarse(crearItem(barra, { unidades: 12 })), false)  // 54 kg de 50
+  assert.equal(superaStock(crearItem(barra, { unidades: 10, peso_kg: 50, kg_editado: true })), false)
 })
 
 test('parsea coma decimal', () => {

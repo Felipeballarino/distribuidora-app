@@ -47,13 +47,14 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
     e.preventDefault()
     if (!validar()) return
     setGuardando(true)
-    await onGuardar({
+    const errorServidor = await onGuardar({
       ...form,
       precio_neto: parsearNumero(form.precio_neto),
       peso_promedio_kg: form.unidad_medida === 'kg' ? parsearNumero(form.peso_promedio_kg) : null,
       stock: parsearNumero(form.stock),
     })
     setGuardando(false)
+    if (errorServidor) setErrores({ cod_articulo: errorServidor })
   }
 
   return (
@@ -135,18 +136,25 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-bold text-texto-suave mb-1">
-              Stock <span className="font-normal">(opcional{form.unidad_medida === 'kg' ? ', en kg' : ''})</span>
-            </label>
-            <input
-              inputMode="decimal"
-              value={form.stock ?? ''}
-              onChange={(e) => handleChange('stock', e.target.value)}
-              placeholder="Vacío = no se controla"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
-            />
-          </div>
+          {producto ? (
+            <div className="bg-fondo rounded-xl px-4 py-3 text-sm text-texto-suave">
+              Stock actual: <b className="font-mono text-texto">{Number(producto.stock ?? 0).toLocaleString('es-AR')}{form.unidad_medida === 'kg' ? ' kg' : ' u'}</b>.
+              Para cambiarlo usá la sección <b>Stock</b> (ingresar mercadería o ajustar).
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-bold text-texto-suave mb-1">
+                Stock inicial <span className="font-normal">({form.unidad_medida === 'kg' ? 'en kg' : 'en unidades'})</span>
+              </label>
+              <input
+                inputMode="decimal"
+                value={form.stock ?? ''}
+                onChange={(e) => handleChange('stock', e.target.value)}
+                placeholder="0"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-bold text-texto-suave mb-1">
@@ -273,11 +281,10 @@ export default function ListaPrecios() {
   })
 
   const handleGuardar = async (datos) => {
-    if (productoEditando) {
-      await window.api.productos.actualizar(productoEditando.id, datos)
-    } else {
-      await window.api.productos.crear(datos)
-    }
+    const r = productoEditando
+      ? await window.api.productos.actualizar(productoEditando.id, datos)
+      : await window.api.productos.crear(datos)
+    if (r?.ok === false) return r.error
     setModalAbierto(false)
     setProductoEditando(null)
     cargar()
@@ -317,7 +324,7 @@ export default function ListaPrecios() {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const filas = XLSX.utils.sheet_to_json(ws)
       const resultado = await window.api.productos.importar(filas)
-      setMensaje(`Se importaron ${resultado.importados} productos. Los que ya existían se actualizaron.`)
+      setMensaje(`Se importaron ${resultado.importados} productos (${resultado.nuevos ?? 0} nuevos). El stock de los que ya existían no se modifica.`)
       cargar()
       setImportando(false)
       e.target.value = ''

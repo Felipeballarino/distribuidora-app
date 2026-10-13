@@ -91,6 +91,27 @@ function inicializarDB() {
     console.error('No se pudo crear el índice único de productos:', error)
   }
 
+  // ── Control de stock ──────────────────────────────────────────────────────
+  // Cada cambio de stock queda registrado en movimientos_stock (la "cuenta").
+  // precios.stock guarda el saldo actual y se actualiza en la misma transacción.
+  // El stock está en la misma unidad en que se cobra: kg o unidades.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS movimientos_stock (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fecha TEXT DEFAULT CURRENT_TIMESTAMP,
+      cod_articulo TEXT NOT NULL,
+      tipo TEXT NOT NULL,            -- inicial | ingreso | venta | ajuste | anulacion
+      cantidad REAL NOT NULL,        -- positiva entra, negativa sale
+      stock_resultante REAL NOT NULL,
+      referencia TEXT,               -- ej: número de pedido
+      nota TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_mov_articulo ON movimientos_stock(cod_articulo, id);
+  `)
+  try { db.exec(`ALTER TABLE comprobantes ADD COLUMN anulado INTEGER DEFAULT 0`) } catch (_) { /* ya existe */ }
+  // Sin stock cargado = 0 (no se puede vender hasta que se ingrese mercadería)
+  db.exec(`UPDATE precios SET stock = 0 WHERE stock IS NULL`)
+
   try {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_comprobantes_numero ON comprobantes(numero)`)
   } catch (error) {

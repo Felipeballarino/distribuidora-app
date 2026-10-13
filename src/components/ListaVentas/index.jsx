@@ -1,6 +1,6 @@
 import { useState, useEffect, Fragment } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Search, FileText, Printer, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, FileText, Printer, X, ChevronDown, ChevronUp, Ban } from 'lucide-react'
 import { formatearPrecio, formatearFecha } from '../../lib/utils'
 import { getEmpresa } from '../../lib/empresa'
 import { imprimirRemito } from '../../lib/imprimirRemito'
@@ -107,22 +107,72 @@ function ModalComprobante({ comprobante, onCerrar }) {
   )
 }
 
+// Confirmación para anular: devuelve la mercadería al stock
+function ModalAnular({ venta, onConfirmar, onCerrar }) {
+  const [anulando, setAnulando] = useState(false)
+  const [error, setError] = useState(null)
+  const confirmar = async () => {
+    setAnulando(true)
+    const r = await onConfirmar()
+    setAnulando(false)
+    if (r?.ok === false) setError(r.error)
+  }
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center"
+      >
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
+          <Ban className="w-8 h-8 text-peligro" />
+        </div>
+        <h3 className="text-xl font-bold text-texto mb-2">¿Anular el pedido N° {venta.numero}?</h3>
+        <p className="text-texto-suave mb-6">
+          {venta.razon_social}. La mercadería vuelve al stock. Esto no se puede deshacer.
+        </p>
+        {error && <p className="text-peligro font-bold mb-4">{error}</p>}
+        <div className="flex gap-3">
+          <button onClick={onCerrar} className="flex-1 h-12 border-2 border-gray-200 rounded-2xl font-bold hover:bg-gray-50">
+            Volver
+          </button>
+          <button
+            onClick={confirmar}
+            disabled={anulando}
+            className="flex-1 h-12 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700 disabled:opacity-60"
+          >
+            {anulando ? 'Anulando...' : 'Anular'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  )
+}
+
 export default function ListaVentas() {
   const [ventas, setVentas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [expandidos, setExpandidos] = useState({})
   const [modalVenta, setModalVenta] = useState(null)
+  const [anulando, setAnulando] = useState(null)
 
-  useEffect(() => {
-    const cargar = async () => {
-      setCargando(true)
-      const data = await window.api.comprobantes.listar()
-      setVentas(data)
-      setCargando(false)
-    }
+  const cargar = async () => {
+    setCargando(true)
+    const data = await window.api.comprobantes.listar()
+    setVentas(data)
+    setCargando(false)
+  }
+  useEffect(() => { cargar() }, [])
+
+  const anular = async () => {
+    const r = await window.api.comprobantes.anular(anulando.id)
+    if (r?.ok === false) return r
+    setAnulando(null)
     cargar()
-  }, [])
+  }
 
   const filtrados = ventas.filter((v) => {
     const q = busqueda.toLowerCase()
@@ -143,7 +193,10 @@ export default function ListaVentas() {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-texto">Historial de pedidos</h1>
-          <p className="text-texto-suave mt-0.5">{ventas.length} pedidos guardados</p>
+          <p className="text-texto-suave mt-0.5">
+            {ventas.filter((v) => !v.anulado).length} pedidos
+            {ventas.some((v) => v.anulado) && ` · ${ventas.filter((v) => v.anulado).length} anulados`}
+          </p>
         </div>
       </div>
 
@@ -185,12 +238,20 @@ export default function ListaVentas() {
               {filtrados.map((v, i) => (
                 <Fragment key={v.id}>
                   <tr
-                    className={`border-b border-gray-50 hover:bg-blue-50/40 transition-colors cursor-pointer ${i % 2 === 0 ? '' : 'bg-gray-50/40'}`}
+                    className={`border-b border-gray-50 hover:bg-blue-50/40 transition-colors cursor-pointer
+                      ${v.anulado ? 'opacity-50' : i % 2 === 0 ? '' : 'bg-gray-50/40'}`}
                     onClick={() => toggleExpandir(v.id)}
                   >
                     <td className="px-4 py-3 font-mono font-bold text-primario text-sm">{v.numero}</td>
                     <td className="px-4 py-3 text-sm text-texto-suave">{formatearFecha(v.fecha)}</td>
-                    <td className="px-4 py-3 font-semibold text-texto">{v.razon_social}</td>
+                    <td className="px-4 py-3 font-semibold text-texto">
+                      {v.razon_social}
+                      {v.anulado && (
+                        <span className="ml-2 inline-block text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-peligro">
+                          ANULADO
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center text-sm text-texto-suave">{v.items.length}</td>
                     <td className="px-4 py-3 text-right font-mono font-bold text-texto">
                       {formatearPrecio(totalComprobante(v))}
@@ -204,6 +265,15 @@ export default function ListaVentas() {
                         >
                           <Printer className="w-4 h-4" />
                         </button>
+                        {!v.anulado && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setAnulando(v) }}
+                            className="p-2 rounded-xl hover:bg-red-100 text-peligro transition-colors"
+                            title="Anular pedido (devuelve el stock)"
+                          >
+                            <Ban className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleExpandir(v.id) }}
                           className="p-2 rounded-xl hover:bg-gray-100 text-texto-suave transition-colors"
@@ -246,6 +316,10 @@ export default function ListaVentas() {
             onCerrar={() => setModalVenta(null)}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {anulando && <ModalAnular venta={anulando} onConfirmar={anular} onCerrar={() => setAnulando(null)} />}
       </AnimatePresence>
     </div>
   )

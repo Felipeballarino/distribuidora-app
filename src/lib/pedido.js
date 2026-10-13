@@ -75,8 +75,8 @@ export function crearItem(producto, { unidades, peso_kg, kg_editado = false, mar
     unidades: u,
     peso_kg: kg,
     kg_editado: tipo === 'piezas' && !!kg_editado,
-    // null = el producto no tiene stock cargado (no se controla)
-    stock: producto.stock ?? null,
+    // stock disponible al momento de cargar (en la unidad en que se cobra)
+    stock: Number(producto.stock) || 0,
   })
 }
 
@@ -109,9 +109,20 @@ export function actualizarItem(item, cambios) {
 // Un ítem es válido si tiene algo para cobrar.
 export const itemValido = (item) => cantidadCobrada(item) > 0
 
-// Aviso (no bloquea): el pedido supera el stock cargado.
-export const superaStock = (item) =>
-  item?.stock !== null && item?.stock !== undefined && cantidadCobrada(item) > Number(item.stock)
+// Stock disponible del producto. Sin dato = 0 (no se puede vender).
+export const stockDisponible = (productoOItem) => Number(productoOItem?.stock) || 0
+
+// true si lo cargado supera el stock: NO se puede agregar ni confirmar.
+export const superaStock = (item) => cantidadCobrada(item) > stockDisponible(item) + 0.0005
+
+// Se puede agregar al pedido: tiene cantidad y hay stock.
+export const puedeAgregarse = (item) => itemValido(item) && !superaStock(item)
+
+// Texto del stock con su unidad ("53,7 kg" / "24 u")
+export const textoStock = (productoOItem) =>
+  productoOItem?.unidad_medida === 'kg'
+    ? formatearKg(stockDisponible(productoOItem))
+    : `${stockDisponible(productoOItem).toLocaleString('es-AR')} u`
 
 const fmtKg = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })
 export const formatearKg = (kg) => `${fmtKg.format(Number(kg) || 0)} kg`

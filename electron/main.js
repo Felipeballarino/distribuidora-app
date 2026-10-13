@@ -5,6 +5,7 @@ const { iniciarBackupsAutomaticos } = require('./db/backup')
 const clientesDB = require('./db/clientes')
 const productosDB = require('./db/productos')
 const comprobantesDB = require('./db/comprobantes')
+const stockDB = require('./db/stock')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -115,4 +116,22 @@ ipcMain.handle('comprobantes:ultimo', async () => {
 
 ipcMain.handle('comprobantes:listar', async () => {
   return comprobantesDB.listarComprobantes()
+})
+
+ipcMain.handle('comprobantes:anular', async (_event, id) => {
+  return comprobantesDB.anularComprobante(id)
+})
+
+// ─── Stock ────────────────────────────────────────────────────────────────────
+
+ipcMain.handle('stock:ingresar', async (_event, cod, cantidad, nota) => {
+  return stockDB.ingresarStock(cod, cantidad, nota)
+})
+
+ipcMain.handle('stock:ajustar', async (_event, cod, contado, nota) => {
+  return stockDB.ajustarStock(cod, contado, nota)
+})
+
+ipcMain.handle('stock:movimientos', async (_event, cod) => {
+  return stockDB.listarMovimientos(cod)
 })

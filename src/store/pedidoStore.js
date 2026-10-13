@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  crearItem, actualizarItem as actualizarItemPuro, totalPedido, itemValido, superaStock,
+  crearItem, actualizarItem as actualizarItemPuro, totalPedido, itemValido, superaStock, puedeAgregarse,
 } from '../lib/pedido'
 
 const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
@@ -40,7 +40,7 @@ const usePedidoStore = create((set, get) => ({
   // Agrega el producto o reemplaza la línea si ya estaba en el pedido.
   agregarItem: (producto, carga) => {
     const nuevo = crearItem(producto, carga)
-    if (!itemValido(nuevo)) return false
+    if (!puedeAgregarse(nuevo)) return false
     const { items } = get()
     const idx = items.findIndex((i) => i.cod_articulo === nuevo.cod_articulo)
     if (idx >= 0) {
@@ -69,8 +69,16 @@ const usePedidoStore = create((set, get) => ({
   // Ítems que quedaron en 0 (no se puede emitir con ellos)
   hayItemsInvalidos: () => get().items.some((i) => !itemValido(i)),
 
-  // Solo aviso: no bloquea la emisión
-  hayItemsSobreStock: () => get().items.some(superaStock),
+  // Bloquea la emisión: algún producto pide más de lo que hay
+  hayItemsSinStock: () => get().items.some(superaStock),
+
+  // El servidor informó stock real menor (otro pedido lo consumió): actualizar
+  actualizarStockDisponible: (faltantes) => {
+    const porCod = new Map(faltantes.map((f) => [f.cod_articulo, f.disponible]))
+    set({
+      items: get().items.map((i) => (porCod.has(i.cod_articulo) ? { ...i, stock: porCod.get(i.cod_articulo) } : i)),
+    })
+  },
 
   getTotal: () => totalPedido(get().items),
 

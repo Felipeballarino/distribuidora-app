@@ -22,5 +22,11 @@ contextBridge.exposeInMainWorld('api', {
     emitir: (datos) => ipcRenderer.invoke('comprobantes:emitir', datos),
     ultimoNumero: () => ipcRenderer.invoke('comprobantes:ultimo'),
     listar: () => ipcRenderer.invoke('comprobantes:listar'),
+    anular: (id) => ipcRenderer.invoke('comprobantes:anular', id),
+  },
+  stock: {
+    ingresar: (cod, cantidad, nota) => ipcRenderer.invoke('stock:ingresar', cod, cantidad, nota),
+    ajustar: (cod, contado, nota) => ipcRenderer.invoke('stock:ajustar', cod, contado, nota),
+    movimientos: (cod) => ipcRenderer.invoke('stock:movimientos', cod),
   },
 })
