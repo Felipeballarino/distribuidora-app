@@ -87,7 +87,7 @@ test('editar el producto o reimportar el Excel no pisa el stock', () => {
     { 'Código': 'MANT', 'Denominación': 'Manteca 200 g', 'Costo': 950, 'Stock': 999 },
     { 'Código': 'NUEVO', 'Denominación': 'Yogur', 'Costo': '320', 'Stock': '48' },
   ])
-  assert.deepEqual(r, { importados: 2, nuevos: 1 })
+  assert.equal(r.importados, 2); assert.equal(r.nuevos, 1); assert.deepEqual(r.sinCosto, [])
   assert.equal(stockDe('MANT'), 20)
   assert.equal(stockDe('NUEVO'), 48)
 })

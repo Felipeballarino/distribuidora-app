@@ -324,7 +324,13 @@ export default function ListaPrecios() {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const filas = XLSX.utils.sheet_to_json(ws)
       const resultado = await window.api.productos.importar(filas)
-      setMensaje(`Se importaron ${resultado.importados} productos (${resultado.nuevos ?? 0} nuevos). El stock de los que ya existían no se modifica.`)
+      const sinCosto = resultado.sinCosto || []
+      setMensaje(
+        `Se importaron ${resultado.importados} productos (${resultado.nuevos ?? 0} nuevos). El stock de los que ya existían no se modifica.` +
+        (sinCosto.length
+          ? ` ATENCIÓN: ${sinCosto.length} quedaron sin costo (${sinCosto.slice(0, 3).join(', ')}${sinCosto.length > 3 ? '…' : ''}). Revisá que el Excel tenga la columna "Costo".`
+          : '')
+      )
       cargar()
       setImportando(false)
       e.target.value = ''

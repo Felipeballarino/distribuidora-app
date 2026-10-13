@@ -132,6 +132,7 @@ function importarPrecios(filas) {
   const db = getDB()
   let importados = 0
   let nuevos = 0
+  const sinCosto = []
   db.exec('BEGIN IMMEDIATE')
   try {
     for (const f of filas) {
@@ -146,6 +147,7 @@ function importarPrecios(filas) {
       }
       const valores = valoresProducto(datos)
       if (!valores[0] || !valores[1]) continue
+      if (!(valores[5] > 0)) sinCosto.push(valores[1])
       const existe = !!db.get(`SELECT 1 FROM precios WHERE cod_articulo = ?`, [valores[0]])
       if (existe) {
         db.run(
@@ -169,7 +171,7 @@ function importarPrecios(filas) {
     db.exec('ROLLBACK')
     throw error
   }
-  return { importados, nuevos }
+  return { importados, nuevos, sinCosto }
 }
 
 module.exports = {

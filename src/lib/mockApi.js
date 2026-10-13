@@ -147,6 +147,7 @@ export const mockApi = {
     importar: async (filas) => {
       await delay(300)
       let importados = 0
+      const sinCosto = []
       for (const f of filas) {
         const cod = String(f['Código'] || f['Codigo'] || f.cod_articulo || '').trim()
         const den = String(f['Denominación'] || f['Denominacion'] || f.denominacion || '').trim()
@@ -168,9 +169,10 @@ export const mockApi = {
         }
         if (existente >= 0) productos[existente] = nuevo
         else productos.push(nuevo)
+        if (!(nuevo.precio_neto > 0)) sinCosto.push(den)
         importados++
       }
-      return { importados }
+      return { importados, sinCosto }
     },
   },
 
