@@ -92,3 +92,9 @@ test('compatible con pedidos viejos', () => {
   assert.equal(subtotalItem(viejo), 300)
   assert.equal(cantidadCobrada(viejo), 3)
 })
+
+test('precio 0: no se puede agregar', async () => {
+  const { puedeAgregarse: puede } = await import('../src/lib/pedido.js')
+  const gratis = { cod_articulo: 'X', denominacion: 'Sin costo', unidad_medida: 'unid', precio_neto: 0, stock: 10 }
+  assert.equal(puede(crearItem(gratis, { unidades: 1, markup_pct: 25 })), false)
+})

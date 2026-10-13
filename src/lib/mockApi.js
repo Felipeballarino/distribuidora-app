@@ -179,6 +179,8 @@ export const mockApi = {
   comprobantes: {
     emitir: async ({ cliente, items, totales }) => {
       await delay(300)
+      const sinPrecio = items.filter((i) => !(i.precio_venta > 0))
+      if (sinPrecio.length) return { ok: false, error: `Hay productos sin precio: ${sinPrecio.map((i) => i.denominacion).join(', ')}` }
       const faltantes = items
         .map((i) => ({ i, p: productos.find((p) => p.cod_articulo === i.cod_articulo) }))
         .filter(({ i, p }) => i.cantidad > (Number(p?.stock) || 0) + 0.0005)

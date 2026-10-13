@@ -56,6 +56,7 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
   }
   const vistaPrevia = useMemo(() => crearItem(producto, carga), [producto, unidades, kgMostrados, kgEditado, margen]) // eslint-disable-line react-hooks/exhaustive-deps
   const stock = stockDisponible(producto)
+  const sinPrecio = !(costo > 0)
   const sinStock = stock <= 0
   const puedeAgregar = puedeAgregarse(vistaPrevia)
   const faltaStock = !sinStock && superaStock(vistaPrevia)
@@ -89,7 +90,7 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(indice * 0.02, 0.3) }}
       className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col
-        ${itemEnPedido ? 'border-secundario/40' : 'border-gray-100'} ${sinStock ? 'opacity-60' : ''}`}
+        ${itemEnPedido ? 'border-secundario/40' : 'border-gray-100'} ${sinStock || sinPrecio ? 'opacity-60' : ''}`}
     >
       {/* Encabezado */}
       <div className="px-4 pt-4 pb-2">
@@ -104,6 +105,11 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
         </div>
         <div className="flex flex-wrap gap-1.5 mt-1">
           {producto.marca && <span className="text-sm text-texto-suave">{producto.marca}</span>}
+          {sinPrecio && (
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-peligro">
+              Sin precio — cargá el costo en Lista de Precios
+            </span>
+          )}
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full
             ${sinStock ? 'bg-red-100 text-peligro' : 'bg-emerald-100 text-emerald-700'}`}>
             {sinStock ? 'Sin stock' : `Stock: ${textoStock(producto)}`}
@@ -235,7 +241,7 @@ export default function TarjetaProducto({ producto, margen, onCambiarMargen, ite
             disabled:bg-gray-200 disabled:text-texto-suave disabled:cursor-not-allowed
             ${agregado ? 'bg-secundario text-white' : 'bg-primario text-white hover:bg-blue-700'}`}
         >
-          {agregado ? <><Check className="w-5 h-5" /> Listo</> : sinStock ? 'Sin stock' : itemEnPedido ? 'Actualizar' : 'Agregar'}
+          {agregado ? <><Check className="w-5 h-5" /> Listo</> : sinPrecio ? 'Sin precio' : sinStock ? 'Sin stock' : itemEnPedido ? 'Actualizar' : 'Agregar'}
         </motion.button>
       </div>
     </motion.div>

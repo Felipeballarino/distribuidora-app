@@ -12,6 +12,12 @@ function obtenerUltimoNumero() {
 //  3. descuenta el stock registrando un movimiento 'venta' por producto
 // No se calcula IVA: el total es la suma de los subtotales.
 function emitirComprobante({ cliente, items, totales }) {
+  // Nunca se guarda una venta con precio 0
+  const sinPrecio = items.filter((i) => !(Number(i.precio_venta ?? i.precio_venta_neto) > 0))
+  if (sinPrecio.length > 0) {
+    return { ok: false, error: `Hay productos sin precio: ${sinPrecio.map((i) => i.denominacion).join(', ')}` }
+  }
+
   const db = getDB()
   db.exec('BEGIN IMMEDIATE')
   try {

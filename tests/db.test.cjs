@@ -22,7 +22,7 @@ const S = require('../electron/db/stock')
 
 const stockDe = (cod) => P.listarPrecios().find((p) => p.cod_articulo === cod).stock
 const cliente = { cod_cliente: '1', razon_social: 'Lor Sani SRL' }
-const item = (cod, cantidad) => ({ cod_articulo: cod, denominacion: cod, cantidad })
+const item = (cod, cantidad) => ({ cod_articulo: cod, denominacion: cod, cantidad, precio_venta: 100 })
 
 before(() => {
   conexion.inicializarDB()
@@ -90,4 +90,10 @@ test('editar el producto o reimportar el Excel no pisa el stock', () => {
   assert.equal(r.importados, 2); assert.equal(r.nuevos, 1); assert.deepEqual(r.sinCosto, [])
   assert.equal(stockDe('MANT'), 20)
   assert.equal(stockDe('NUEVO'), 48)
+})
+
+test('no guarda un pedido con precio 0', () => {
+  const r = C.emitirComprobante({ cliente, items: [{ ...item('MANT', 1), precio_venta: 0 }], totales: { total: 0 } })
+  assert.equal(r.ok, false)
+  assert.match(r.error, /sin precio/)
 })

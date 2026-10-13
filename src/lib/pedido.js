@@ -115,8 +115,11 @@ export const stockDisponible = (productoOItem) => Number(productoOItem?.stock) |
 // true si lo cargado supera el stock: NO se puede agregar ni confirmar.
 export const superaStock = (item) => cantidadCobrada(item) > stockDisponible(item) + 0.0005
 
-// Se puede agregar al pedido: tiene cantidad y hay stock.
-export const puedeAgregarse = (item) => itemValido(item) && !superaStock(item)
+// Precio > 0. Un producto con costo 0 no se puede vender (el precio no se edita a mano).
+export const tienePrecio = (item) => precioDeItem(item) > 0
+
+// Se puede agregar al pedido: tiene precio, cantidad y hay stock.
+export const puedeAgregarse = (item) => tienePrecio(item) && itemValido(item) && !superaStock(item)
 
 // Texto del stock con su unidad ("53,7 kg" / "24 u")
 export const textoStock = (productoOItem) =>

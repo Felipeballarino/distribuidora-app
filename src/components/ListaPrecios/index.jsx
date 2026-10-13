@@ -344,7 +344,12 @@ export default function ListaPrecios() {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-texto">Lista de Precios</h1>
-          <p className="text-texto-suave mt-0.5">{precios.length} productos</p>
+          <p className="text-texto-suave mt-0.5">
+            {precios.length} productos
+            {precios.some((p) => !(p.precio_neto > 0)) && (
+              <span className="text-peligro font-bold"> · {precios.filter((p) => !(p.precio_neto > 0)).length} sin costo</span>
+            )}
+          </p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportar} />
@@ -437,7 +442,11 @@ export default function ListaPrecios() {
                     {p.peso_promedio_kg ? formatearKg(p.peso_promedio_kg) : '—'}
                   </td>
                   <td className="px-4 py-3 font-mono text-right font-bold text-primario">
-                    {formatearPrecio(p.precio_neto)}<span className="text-xs text-texto-suave">{p.unidad_medida === 'kg' ? '/kg' : '/u'}</span>
+                    {p.precio_neto > 0 ? (
+                      <>{formatearPrecio(p.precio_neto)}<span className="text-xs text-texto-suave">{p.unidad_medida === 'kg' ? '/kg' : '/u'}</span></>
+                    ) : (
+                      <span className="text-peligro">Sin costo</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center font-mono text-sm text-texto">{p.stock != null ? Number(p.stock).toLocaleString('es-AR', { maximumFractionDigits: 3 }) : '—'}</td>
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.categoria}</td>

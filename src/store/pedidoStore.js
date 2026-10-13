@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import {
-  crearItem, actualizarItem as actualizarItemPuro, totalPedido, itemValido, superaStock, puedeAgregarse,
+  crearItem, actualizarItem as actualizarItemPuro, totalPedido, itemValido, superaStock, puedeAgregarse, tienePrecio,
 } from '../lib/pedido'
 
 const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
@@ -68,6 +68,9 @@ const usePedidoStore = create((set, get) => ({
 
   // Ítems que quedaron en 0 (no se puede emitir con ellos)
   hayItemsInvalidos: () => get().items.some((i) => !itemValido(i)),
+
+  // Bloquea la emisión: algún producto quedó con precio 0
+  hayItemsSinPrecio: () => get().items.some((i) => !tienePrecio(i)),
 
   // Bloquea la emisión: algún producto pide más de lo que hay
   hayItemsSinStock: () => get().items.some(superaStock),
