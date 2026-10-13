@@ -3,10 +3,13 @@ import { AnimatePresence, motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import { Plus, Upload, Download, Pencil, Trash2, X, Search, Package } from 'lucide-react'
 import { formatearPrecio } from '../../lib/utils'
+import { CATEGORIAS } from '../../lib/categorias'
+import { parsearNumero, formatearKg } from '../../lib/pedido'
 
-const CATEGORIAS = ['Quesos', 'Manteca', 'Yogures', 'Fiambres', 'Cremas', 'Otros']
-const UNIDADES = ['unid', 'kg']
-const IVA = 0.21
+const UNIDADES = [
+  { valor: 'unid', texto: 'Por unidad' },
+  { valor: 'kg', texto: 'Por kilo' },
+]
 
 function ModalProducto({ producto, onGuardar, onCerrar }) {
   const [form, setForm] = useState({
@@ -15,6 +18,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
     marca: producto?.marca ?? '',
     unidad_medida: producto?.unidad_medida ?? 'unid',
     precio_neto: producto?.precio_neto ?? '',
+    peso_promedio_kg: producto?.peso_promedio_kg ?? '',
     stock: producto?.stock ?? '',
     categoria: producto?.categoria ?? 'Quesos',
   })
@@ -30,7 +34,11 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
     const e = {}
     if (!form.cod_articulo.trim()) e.cod_articulo = 'Requerido'
     if (!form.denominacion.trim()) e.denominacion = 'Requerido'
-    if (!form.precio_neto || isNaN(parseFloat(form.precio_neto))) e.precio_neto = 'Ingresá un número'
+    const costo = parsearNumero(form.precio_neto)
+    if (costo === null || costo <= 0) e.precio_neto = 'Ingresá el costo'
+    if (form.peso_promedio_kg !== '' && form.peso_promedio_kg !== null && !(parsearNumero(form.peso_promedio_kg) > 0)) {
+      e.peso_promedio_kg = 'Ingresá un peso válido (ej: 4,5)'
+    }
     setErrores(e)
     return Object.keys(e).length === 0
   }
@@ -41,9 +49,9 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
     setGuardando(true)
     await onGuardar({
       ...form,
-      precio_neto: parseFloat(form.precio_neto),
-      precio_con_iva: parseFloat(form.precio_neto) * (1 + IVA),
-      stock: form.stock !== '' ? parseInt(form.stock) : null,
+      precio_neto: parsearNumero(form.precio_neto),
+      peso_promedio_kg: form.unidad_medida === 'kg' ? parsearNumero(form.peso_promedio_kg) : null,
+      stock: parsearNumero(form.stock),
     })
     setGuardando(false)
   }
@@ -79,13 +87,13 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
               {errores.cod_articulo && <p className="text-peligro text-xs mt-1">{errores.cod_articulo}</p>}
             </div>
             <div>
-              <label className="block text-sm font-bold text-texto-suave mb-1">Unidad</label>
+              <label className="block text-sm font-bold text-texto-suave mb-1">Se vende</label>
               <select
                 value={form.unidad_medida}
                 onChange={(e) => handleChange('unidad_medida', e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
               >
-                {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+                {UNIDADES.map((u) => <option key={u.valor} value={u.valor}>{u.texto}</option>)}
               </select>
             </div>
           </div>
@@ -111,28 +119,44 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             />
           </div>
 
+          {form.unidad_medida === 'kg' && (
+            <div>
+              <label className="block text-sm font-bold text-texto-suave mb-1">Peso promedio por pieza (kg)</label>
+              <input
+                inputMode="decimal"
+                value={form.peso_promedio_kg ?? ''}
+                onChange={(e) => handleChange('peso_promedio_kg', e.target.value)}
+                placeholder="Ej: 4,5 (vacío si se vende suelto)"
+                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.peso_promedio_kg ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+              />
+              {errores.peso_promedio_kg
+                ? <p className="text-peligro text-xs mt-1">{errores.peso_promedio_kg}</p>
+                : <p className="text-texto-suave text-xs mt-1">Si lo cargás, al pedir piezas los kilos se calculan solos (10 piezas × 4,5 = 45 kg).</p>}
+            </div>
+          )}
+
           <div>
-            <label className="block text-sm font-bold text-texto-suave mb-1">Stock</label>
+            <label className="block text-sm font-bold text-texto-suave mb-1">
+              Stock <span className="font-normal">(opcional{form.unidad_medida === 'kg' ? ', en kg' : ''})</span>
+            </label>
             <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.stock}
+              inputMode="decimal"
+              value={form.stock ?? ''}
               onChange={(e) => handleChange('stock', e.target.value)}
-              placeholder="0"
+              placeholder="Vacío = no se controla"
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-texto-suave mb-1">Precio *</label>
+            <label className="block text-sm font-bold text-texto-suave mb-1">
+              Costo * <span className="font-normal">({form.unidad_medida === 'kg' ? 'por kilo' : 'por unidad'})</span>
+            </label>
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              inputMode="decimal"
               value={form.precio_neto}
               onChange={(e) => handleChange('precio_neto', e.target.value)}
-              placeholder="1000.00"
+              placeholder="4000"
               className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.precio_neto ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
             />
             {errores.precio_neto && <p className="text-peligro text-xs mt-1">{errores.precio_neto}</p>}
@@ -219,6 +243,7 @@ export default function ListaPrecios() {
   const [precios, setPrecios] = useState([])
   const [cargando, setCargando] = useState(true)
   const [importando, setImportando] = useState(false)
+  const [mensaje, setMensaje] = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [modalAbierto, setModalAbierto] = useState(false)
   const [productoEditando, setProductoEditando] = useState(null)
@@ -270,12 +295,13 @@ export default function ListaPrecios() {
       'Denominación': p.denominacion,
       'Marca': p.marca || '',
       'Unidad': p.unidad_medida,
-      'Precio': p.precio_neto,
+      'Peso promedio': p.peso_promedio_kg ?? '',
+      'Costo': p.precio_neto,
       'Stock': p.stock ?? '',
       'Categoría': p.categoria || '',
     }))
     const ws = XLSX.utils.json_to_sheet(datos)
-    ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 18 }, { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }]
+    ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 18 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 10 }, { wch: 14 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Precios')
     XLSX.writeFile(wb, 'lista_precios.xlsx')
@@ -291,7 +317,7 @@ export default function ListaPrecios() {
       const ws = wb.Sheets[wb.SheetNames[0]]
       const filas = XLSX.utils.sheet_to_json(ws)
       const resultado = await window.api.productos.importar(filas)
-      alert(`✓ Se importaron ${resultado.importados} productos correctamente.`)
+      setMensaje(`Se importaron ${resultado.importados} productos. Los que ya existían se actualizaron.`)
       cargar()
       setImportando(false)
       e.target.value = ''
@@ -336,6 +362,13 @@ export default function ListaPrecios() {
         </div>
       </div>
 
+      {mensaje && (
+        <div className="mb-4 flex items-center justify-between bg-green-50 text-secundario font-bold rounded-2xl px-4 py-3">
+          <span>✓ {mensaje}</span>
+          <button onClick={() => setMensaje(null)} className="p-1"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* Búsqueda */}
       <div className="relative mb-4">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-texto-suave pointer-events-none" />
@@ -365,8 +398,9 @@ export default function ListaPrecios() {
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Código</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Denominación</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Marca</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Unidad</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-right">Precio</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Se vende</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Peso prom.</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-right">Costo</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Stock</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Categoría</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Acciones</th>
@@ -383,11 +417,16 @@ export default function ListaPrecios() {
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.marca || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${p.unidad_medida === 'kg' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                      {p.unidad_medida}
+                      {p.unidad_medida === 'kg' ? 'x kg' : 'x unidad'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-right font-bold text-primario">{formatearPrecio(p.precio_neto)}</td>
-                  <td className="px-4 py-3 text-center font-mono text-sm text-texto">{p.stock ?? '—'}</td>
+                  <td className="px-4 py-3 text-center font-mono text-sm text-texto-suave">
+                    {p.peso_promedio_kg ? formatearKg(p.peso_promedio_kg) : '—'}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-right font-bold text-primario">
+                    {formatearPrecio(p.precio_neto)}<span className="text-xs text-texto-suave">{p.unidad_medida === 'kg' ? '/kg' : '/u'}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center font-mono text-sm text-texto">{p.stock != null ? Number(p.stock).toLocaleString('es-AR', { maximumFractionDigits: 3 }) : '—'}</td>
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.categoria}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-center">

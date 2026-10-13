@@ -3,35 +3,32 @@ const { getDB } = require('./connection')
 function buscarClientes(termino) {
   const db = getDB()
   const busqueda = `%${termino}%`
-  return db
-    .prepare(`
-      SELECT cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit
-      FROM clientes
-      WHERE activo = 1
-        AND (razon_social LIKE ? OR cod_cliente LIKE ?)
-      ORDER BY razon_social
-      LIMIT 20
-    `)
-    .all([busqueda, busqueda])
+  return db.all(
+    `SELECT cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit
+     FROM clientes
+     WHERE activo = 1
+       AND (razon_social LIKE ? OR cod_cliente LIKE ?)
+     ORDER BY razon_social
+     LIMIT 30`,
+    [busqueda, busqueda]
+  )
 }
 
 function listarClientes() {
   const db = getDB()
-  return db
-    .prepare(`
-      SELECT id, cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit, activo
-      FROM clientes
-      ORDER BY razon_social
-    `)
-    .all()
+  return db.all(
+    `SELECT id, cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit, activo
+     FROM clientes
+     ORDER BY razon_social`
+  )
 }
 
 function crearCliente({ cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit }) {
   const db = getDB()
-  db.prepare(`
+  db.run(`
     INSERT INTO clientes (cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run([
+  `, [
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
@@ -45,11 +42,11 @@ function crearCliente({ cod_cliente, razon_social, domicilio, localidad, telefon
 
 function actualizarCliente(id, { cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit }) {
   const db = getDB()
-  db.prepare(`
+  db.run(`
     UPDATE clientes
     SET cod_cliente=?, razon_social=?, domicilio=?, localidad=?, telefono=?, email=?, cuit=?
     WHERE id=?
-  `).run([
+  `, [
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
@@ -64,22 +61,22 @@ function actualizarCliente(id, { cod_cliente, razon_social, domicilio, localidad
 
 function eliminarCliente(id) {
   const db = getDB()
-  db.prepare(`DELETE FROM clientes WHERE id=?`).run([id])
+  db.run(`DELETE FROM clientes WHERE id=?`, [id])
   return { ok: true }
 }
 
 function importarClientes(filas) {
   const db = getDB()
-  const stmt = db.prepare(`
+  const sql = `
     INSERT OR REPLACE INTO clientes (cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `)
+  `
   let importados = 0
   for (const f of filas) {
     const cod = String(f.cod_cliente || '').trim()
     const razon = String(f.razon_social || '').trim()
     if (!cod || !razon) continue
-    stmt.run([
+    db.run(sql, [
       cod,
       razon,
       String(f.domicilio || '').trim(),

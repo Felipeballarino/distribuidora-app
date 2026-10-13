@@ -1,4 +1,9 @@
 import { create } from 'zustand'
+import {
+  crearItem, actualizarItem as actualizarItemPuro, totalPedido, itemValido, superaStock,
+} from '../lib/pedido'
+
+const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
 
 const usePedidoStore = create((set, get) => ({
   // Navegación
@@ -8,111 +13,79 @@ const usePedidoStore = create((set, get) => ({
   // Datos del pedido
   cliente: null,
   items: [],
+  // Margen que se aplica a todo el pedido (ej: 15 = +15% sobre el costo).
+  // Se puede cambiar por producto; al cambiar el del pedido, se pisa en todos.
+  margenPedido: 0,
   comprobanteEmitido: null,
 
-  // Navegación entre pasos
   irA: (nuevoPaso) => {
-    const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
     const actual = PASOS.indexOf(get().paso)
     const destino = PASOS.indexOf(nuevoPaso)
     set({ paso: nuevoPaso, direccion: destino > actual ? 1 : -1 })
   },
 
-  // Cliente
   seleccionarCliente: (cliente) => {
     set({ cliente })
     get().irA('productos')
   },
 
-  // Items del pedido
-  // unidades: cantidad de piezas (informativo para kg, definitivo para unid)
-  // peso_kg: peso total (solo para productos en kg, es la base del precio)
-  // markup_pct: porcentaje de recargo sobre el precio de costo (ej: 10 = +10%)
-  agregarItem: (producto, { unidades, peso_kg, markup_pct }) => {
-    const cantidad = producto.unidad_medida === 'kg' ? peso_kg : unidades
-    const precio_venta_neto = producto.precio_neto * (1 + markup_pct / 100)
-    const precio_venta_con_iva = precio_venta_neto * 1.21
-
-    const nuevoItem = {
-      cod_articulo: producto.cod_articulo,
-      denominacion: producto.denominacion,
-      unidad_medida: producto.unidad_medida,
-      precio_neto: producto.precio_neto,
-      precio_con_iva: producto.precio_con_iva,
-      precio_venta_neto,
-      precio_venta_con_iva,
-      markup_pct,
-      unidades,
-      peso_kg,
-      cantidad,
-      // sin dato de stock cargado se trata como sin stock (0), no como ilimitado
-      stock: producto.stock ?? 0,
-    }
-
-    const { items } = get()
-    const existente = items.findIndex((i) => i.cod_articulo === producto.cod_articulo)
-    if (existente >= 0) {
-      const nuevosItems = [...items]
-      nuevosItems[existente] = nuevoItem
-      set({ items: nuevosItems })
-    } else {
-      set({ items: [...items, nuevoItem] })
-    }
-  },
-
-  actualizarCantidad: (cod_articulo, cantidad) => {
-    if (cantidad <= 0) {
-      get().eliminarItem(cod_articulo)
-      return
-    }
+  setMargenPedido: (pct) => {
+    const margen = Number(pct) || 0
     set({
-      items: get().items.map((i) => {
-        if (i.cod_articulo !== cod_articulo) return i
-        const tope = Math.min(cantidad, i.stock)
-        return {
-          ...i,
-          cantidad: tope,
-          // si es kg, sincronizamos peso_kg con la cantidad editada en resumen
-          peso_kg: i.unidad_medida === 'kg' ? tope : i.peso_kg,
-        }
-      }),
+      margenPedido: margen,
+      items: get().items.map((i) => actualizarItemPuro(i, { markup_pct: margen })),
     })
   },
 
-  // true si algún ítem del pedido supera el stock disponible
-  hayItemsSinStock: () => {
+  // Agrega el producto o reemplaza la línea si ya estaba en el pedido.
+  agregarItem: (producto, carga) => {
+    const nuevo = crearItem(producto, carga)
+    if (!itemValido(nuevo)) return false
     const { items } = get()
-    return items.some((i) => i.stock <= 0 || i.cantidad > i.stock)
+    const idx = items.findIndex((i) => i.cod_articulo === nuevo.cod_articulo)
+    if (idx >= 0) {
+      const copia = [...items]
+      copia[idx] = nuevo
+      set({ items: copia })
+    } else {
+      set({ items: [...items, nuevo] })
+    }
+    return true
+  },
+
+  // cambios: { unidades } | { peso_kg } | { markup_pct }
+  actualizarItem: (cod_articulo, cambios) => {
+    set({
+      items: get().items.map((i) =>
+        i.cod_articulo === cod_articulo ? actualizarItemPuro(i, cambios) : i
+      ),
+    })
   },
 
   eliminarItem: (cod_articulo) => {
     set({ items: get().items.filter((i) => i.cod_articulo !== cod_articulo) })
   },
 
-  // Totales calculados sobre precio de venta (con markup aplicado)
-  getTotales: () => {
-    const { items } = get()
-    const neto = items.reduce((acc, i) => acc + i.precio_venta_neto * i.cantidad, 0)
-    const iva = items.reduce(
-      (acc, i) => acc + (i.precio_venta_con_iva - i.precio_venta_neto) * i.cantidad,
-      0
-    )
-    return { neto, iva, total: neto + iva }
-  },
+  // Ítems que quedaron en 0 (no se puede emitir con ellos)
+  hayItemsInvalidos: () => get().items.some((i) => !itemValido(i)),
 
-  // Emisión
+  // Solo aviso: no bloquea la emisión
+  hayItemsSobreStock: () => get().items.some(superaStock),
+
+  getTotal: () => totalPedido(get().items),
+
   setComprobanteEmitido: (comprobante) => {
     set({ comprobanteEmitido: comprobante })
     get().irA('emitido')
   },
 
-  // Reiniciar pedido
   nuevoPedido: () => {
     set({
       paso: 'cliente',
       direccion: 1,
       cliente: null,
       items: [],
+      margenPedido: 0,
       comprobanteEmitido: null,
     })
   },

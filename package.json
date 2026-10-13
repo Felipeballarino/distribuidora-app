@@ -10,7 +10,8 @@
     "build": "vite build && electron-builder",
     "build:win": "electron-builder --win --x64",
     "seed": "node --experimental-sqlite scripts/seed.js",
-    "electron:rebuild": "echo 'No se requiere rebuild - usando WASM SQLite'"
+    "electron:rebuild": "echo 'No se requiere rebuild - usando WASM SQLite'",
+    "test": "node --test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",

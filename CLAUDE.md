@@ -13,6 +13,28 @@ El operador busca un cliente, selecciona productos con cantidades en kg/unidades
 
 ---
 
+## ⚠️ Estado real y decisiones del cliente (oct 2026) — tiene prioridad sobre lo de abajo
+
+- **El ERP actual es MaxFlex .net, no Tango.** No hay integración: la app es independiente (SQLite local).
+  El Excel de clientes se exporta de MaxFlex ("Agenda de Cuenta Corriente", Crystal Reports).
+- **No facturan con este sistema:** se arma el pedido y se imprime una boleta ("Documento no válido como factura").
+- **Sin IVA en ningún lado.** El total es la suma de subtotales.
+- **Precios:** cada producto tiene un COSTO (columna `precio_neto`). El precio de venta = costo × (1 + margen%).
+  El operador elige el margen del pedido (0/10/15/20/25/30) o lo cambia por producto.
+  **El precio NO se edita a mano**, solo el porcentaje.
+- **Unidades y kg** (`src/lib/pedido.js`, con tests en `tests/`):
+  - `unidad_medida = 'unid'` → se cobra por unidad; solo se cargan unidades.
+  - `unidad_medida = 'kg'` + `peso_promedio_kg` → piezas: kg = piezas × peso promedio, editable con el peso real.
+  - `unidad_medida = 'kg'` sin peso promedio → suelto: solo se cargan kg.
+  - **Pesan antes de imprimir**: el kg real se corrige en la carga o en el resumen.
+- **Stock:** opcional. `NULL` = no se controla. Si está cargado, se descuenta al confirmar y superarlo es solo aviso (no bloquea).
+- Usuarios: el dueño, su padre y operadores con muy poca experiencia (ej. una persona de 45 años que nunca usó computadora).
+  Carga de 40–60 clientes por día → priorizar velocidad y teclado.
+- `node-sqlite3-wasm`: usar `db.all/get/run` (los `prepare()` hay que finalizarlos a mano).
+- Tests: `npm test`.
+
+---
+
 ## Stack Tecnológico
 
 | Capa | Tecnología | Motivo |

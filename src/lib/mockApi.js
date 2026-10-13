@@ -1,6 +1,4 @@
 // API simulada para desarrollo en el navegador (sin Electron)
-const IVA = 0.21
-
 let clientes = [
   { id: 1, cod_cliente: '001', razon_social: 'Supermercado El Ahorro', domicilio: 'Av. San Martín 1234', localidad: 'Villa María', telefono: '2664123456', email: '', cuit: '30-12345678-9' },
   { id: 2, cod_cliente: '002', razon_social: 'Almacén Don Pedro', domicilio: 'Belgrano 456', localidad: 'Villa Mercedes', telefono: '2657456789', email: '', cuit: '20-87654321-3' },
@@ -14,25 +12,23 @@ let clientes = [
   { id: 10, cod_cliente: '010', razon_social: 'Kiosco y Almacén Ramírez', domicilio: 'Tucumán 678', localidad: 'La Toma', telefono: '2657789012', email: '', cuit: '20-66778899-0' },
 ]
 
+// precio_neto = COSTO. unidad_medida = cómo se cobra. peso_promedio_kg = peso por pieza (opcional)
 let productos = [
-  { id: 1, cod_articulo: 'Q001', denominacion: 'Queso Cremoso x kg', marca: '', unidad_medida: 'kg', precio_neto: 1800, precio_con_iva: parseFloat((1800 * (1 + IVA)).toFixed(2)), stock: 40, cantidad_unidades: null, categoria: 'Quesos' },
-  { id: 2, cod_articulo: 'Q002', denominacion: 'Queso Mozzarella x kg', marca: '', unidad_medida: 'kg', precio_neto: 2100, precio_con_iva: parseFloat((2100 * (1 + IVA)).toFixed(2)), stock: 25, cantidad_unidades: null, categoria: 'Quesos' },
-  { id: 3, cod_articulo: 'Q003', denominacion: 'Queso Sardo x kg', marca: '', unidad_medida: 'kg', precio_neto: 2400, precio_con_iva: parseFloat((2400 * (1 + IVA)).toFixed(2)), stock: 0, cantidad_unidades: null, categoria: 'Quesos' },
-  { id: 4, cod_articulo: 'Q004', denominacion: 'Queso Mar del Plata x kg', marca: '', unidad_medida: 'kg', precio_neto: 2200, precio_con_iva: parseFloat((2200 * (1 + IVA)).toFixed(2)), stock: 18, cantidad_unidades: null, categoria: 'Quesos' },
-  { id: 5, cod_articulo: 'M001', denominacion: 'Manteca x 200g', marca: '', unidad_medida: 'unid', precio_neto: 850, precio_con_iva: parseFloat((850 * (1 + IVA)).toFixed(2)), stock: 60, cantidad_unidades: null, categoria: 'Manteca' },
-  { id: 6, cod_articulo: 'M002', denominacion: 'Manteca x 500g', marca: '', unidad_medida: 'unid', precio_neto: 1900, precio_con_iva: parseFloat((1900 * (1 + IVA)).toFixed(2)), stock: 30, cantidad_unidades: null, categoria: 'Manteca' },
-  { id: 7, cod_articulo: 'Y001', denominacion: 'Yogur Natural x 190g', marca: '', unidad_medida: 'unid', precio_neto: 320, precio_con_iva: parseFloat((320 * (1 + IVA)).toFixed(2)), stock: 100, cantidad_unidades: null, categoria: 'Yogures' },
-  { id: 8, cod_articulo: 'Y002', denominacion: 'Yogur Frutado x 190g', marca: '', unidad_medida: 'unid', precio_neto: 340, precio_con_iva: parseFloat((340 * (1 + IVA)).toFixed(2)), stock: 100, cantidad_unidades: null, categoria: 'Yogures' },
-  { id: 9, cod_articulo: 'Y003', denominacion: 'Yogur Entero x 1kg', marca: '', unidad_medida: 'unid', precio_neto: 1400, precio_con_iva: parseFloat((1400 * (1 + IVA)).toFixed(2)), stock: 15, cantidad_unidades: null, categoria: 'Yogures' },
-  { id: 10, cod_articulo: 'F001', denominacion: 'Jamón Cocido x kg', marca: '', unidad_medida: 'kg', precio_neto: 3200, precio_con_iva: parseFloat((3200 * (1 + IVA)).toFixed(2)), stock: 12, cantidad_unidades: null, categoria: 'Fiambres' },
-  { id: 11, cod_articulo: 'F002', denominacion: 'Salame x kg', marca: '', unidad_medida: 'kg', precio_neto: 2800, precio_con_iva: parseFloat((2800 * (1 + IVA)).toFixed(2)), stock: 10, cantidad_unidades: null, categoria: 'Fiambres' },
-  { id: 12, cod_articulo: 'C001', denominacion: 'Crema de Leche x 200ml', marca: '', unidad_medida: 'unid', precio_neto: 680, precio_con_iva: parseFloat((680 * (1 + IVA)).toFixed(2)), stock: 50, cantidad_unidades: null, categoria: 'Cremas' },
-  { id: 13, cod_articulo: 'C002', denominacion: 'Crema de Leche x 500ml', marca: '', unidad_medida: 'unid', precio_neto: 1500, precio_con_iva: parseFloat((1500 * (1 + IVA)).toFixed(2)), stock: 20, cantidad_unidades: null, categoria: 'Cremas' },
-  { id: 14, cod_articulo: 'C004', denominacion: 'Dulce de Leche Repostero x 500g', marca: '', unidad_medida: 'unid', precio_neto: 1100, precio_con_iva: parseFloat((1100 * (1 + IVA)).toFixed(2)), stock: 0, cantidad_unidades: null, categoria: 'Cremas' },
+  { id: 1, cod_articulo: '2', denominacion: 'Queso Barra Don Bosco', marca: 'Don Bosco', unidad_medida: 'kg', peso_promedio_kg: 4.5, precio_neto: 4000, stock: 120, categoria: 'Quesos' },
+  { id: 2, cod_articulo: '144', denominacion: 'Queso Barra La Estancia', marca: 'La Estancia', unidad_medida: 'kg', peso_promedio_kg: 4.2, precio_neto: 3800, stock: null, categoria: 'Quesos' },
+  { id: 3, cod_articulo: '1', denominacion: 'Queso Cremoso Horma', marca: 'La Quesera', unidad_medida: 'kg', peso_promedio_kg: 3.8, precio_neto: 3500, stock: null, categoria: 'Quesos' },
+  { id: 4, cod_articulo: 'Q9', denominacion: 'Queso Cremoso fraccionado', marca: '', unidad_medida: 'kg', peso_promedio_kg: null, precio_neto: 3700, stock: null, categoria: 'Quesos' },
+  { id: 5, cod_articulo: '41', denominacion: 'Cheddar líquido x 4 kg', marca: 'La Quesera', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 18000, stock: 10, categoria: 'Quesos' },
+  { id: 6, cod_articulo: 'F001', denominacion: 'Jamón Cocido pieza', marca: 'Paladini', unidad_medida: 'kg', peso_promedio_kg: 5, precio_neto: 6200, stock: null, categoria: 'Fiambres' },
+  { id: 7, cod_articulo: 'F002', denominacion: 'Salame Milán', marca: '', unidad_medida: 'kg', peso_promedio_kg: 1.2, precio_neto: 7800, stock: null, categoria: 'Fiambres' },
+  { id: 8, cod_articulo: 'M001', denominacion: 'Manteca x 200 g', marca: 'La Serenísima', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 850, stock: null, categoria: 'Manteca' },
+  { id: 9, cod_articulo: 'Y001', denominacion: 'Yogur Natural x 190 g', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 320, stock: null, categoria: 'Yogures' },
+  { id: 10, cod_articulo: 'C001', denominacion: 'Crema de Leche x 200 ml', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 680, stock: null, categoria: 'Cremas' },
+  { id: 11, cod_articulo: 'C004', denominacion: 'Dulce de Leche Repostero x 10 kg', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 21000, stock: 3, categoria: 'Otros' },
 ]
 
 let nextClienteId = 11
-let nextProductoId = 15
+let nextProductoId = 12
 let contadorComprobante = 1
 let historialComprobantes = []
 
@@ -97,10 +93,12 @@ export const mockApi = {
   productos: {
     buscar: async (termino) => {
       await delay()
-      const t = termino.toLowerCase()
-      return productos.filter(
-        (p) => p.denominacion.toLowerCase().includes(t) || p.categoria.toLowerCase().includes(t)
-      )
+      const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const palabras = norm(termino).split(/\s+/).filter(Boolean)
+      return productos.filter((p) => {
+        const texto = norm(`${p.denominacion} ${p.marca} ${p.categoria} ${p.cod_articulo}`)
+        return palabras.every((w) => texto.includes(w))
+      })
     },
     porCategoria: async (categoria) => {
       await delay(80)
@@ -134,16 +132,17 @@ export const mockApi = {
         const cod = String(f['Código'] || f['Codigo'] || f.cod_articulo || '').trim()
         const den = String(f['Denominación'] || f['Denominacion'] || f.denominacion || '').trim()
         if (!cod || !den) continue
-        const pNeto = parseFloat(f['Precio Neto'] || f.precio_neto || 0)
-        const pIva = parseFloat(f['Precio c/IVA'] || f['Precio con IVA'] || f.precio_con_iva || pNeto * 1.21)
+        const unidad = String(f['Unidad'] || f.unidad_medida || 'unid').trim().toLowerCase() === 'kg' ? 'kg' : 'unid'
         const existente = productos.findIndex((p) => p.cod_articulo === cod)
         const nuevo = {
           id: existente >= 0 ? productos[existente].id : nextProductoId++,
           cod_articulo: cod,
           denominacion: den,
-          unidad_medida: String(f['Unidad'] || f.unidad_medida || 'unid').trim(),
-          precio_neto: pNeto,
-          precio_con_iva: pIva,
+          marca: String(f['Marca'] || f.marca || '').trim(),
+          unidad_medida: unidad,
+          peso_promedio_kg: unidad === 'kg' ? parseFloat(f['Peso promedio'] || f.peso_promedio_kg) || null : null,
+          precio_neto: parseFloat(f['Costo'] || f['Precio'] || f.precio_neto || 0),
+          stock: f['Stock'] !== undefined && f['Stock'] !== '' ? parseFloat(f['Stock']) : null,
           categoria: String(f['Categoría'] || f['Categoria'] || f.categoria || '').trim(),
           activo: 1,
         }
@@ -161,7 +160,7 @@ export const mockApi = {
       items.forEach((item) => {
         const idx = productos.findIndex((p) => p.cod_articulo === item.cod_articulo)
         if (idx >= 0 && productos[idx].stock != null) {
-          productos[idx].stock = Math.max(0, productos[idx].stock - item.cantidad)
+          productos[idx].stock = productos[idx].stock - item.cantidad
         }
       })
       const numero = String(contadorComprobante++).padStart(8, '0')
@@ -170,9 +169,11 @@ export const mockApi = {
         numero,
         cod_cliente: cliente.cod_cliente,
         razon_social: cliente.razon_social,
+        cuit: cliente.cuit || '',
+        domicilio: cliente.domicilio || '',
         fecha: new Date().toISOString(),
-        total_neto: totales.neto,
-        total_iva: totales.iva,
+        total_neto: totales.total,
+        total_iva: 0,
         total_final: totales.total,
         items,
       }

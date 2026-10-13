@@ -1,35 +1,33 @@
 import { formatearPrecio, formatearFecha } from './utils'
+import { precioDeItem, subtotalItem, textoCantidad, textoKg, sufijoUnidad, totalComprobante } from './pedido'
+
+// Evita que un nombre con < o & rompa el HTML de la boleta
+const esc = (v) =>
+  String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
 function htmlCopia(comprobante, empresa, tipo) {
-  const itemsHtml = comprobante.items.map((item) => {
-    const precio = item.precio_venta_neto ?? item.precio_venta_con_iva ?? 0
-    const subtotal = precio * item.cantidad
-    return `
+  const itemsHtml = comprobante.items.map((item) => `
       <tr>
-        <td>${item.denominacion}</td>
-        <td class="tc mono">${item.unidades > 0 ? item.unidades : '—'}</td>
-        <td class="tc mono">${item.peso_kg > 0 ? item.peso_kg + ' kg' : '—'}</td>
-        <td class="tr mono">${formatearPrecio(precio)}</td>
-        <td class="tr mono bold">${formatearPrecio(subtotal)}</td>
-      </tr>`
-  }).join('')
+        <td>${esc(item.denominacion)}</td>
+        <td class="tc mono">${textoCantidad(item)}</td>
+        <td class="tc mono">${textoKg(item)}</td>
+        <td class="tr mono">${formatearPrecio(precioDeItem(item))}${sufijoUnidad(item)}</td>
+        <td class="tr mono bold">${formatearPrecio(subtotalItem(item))}</td>
+      </tr>`).join('')
 
-  const total = comprobante.total_neto
-    ?? comprobante.items.reduce(
-        (acc, i) => acc + ((i.precio_venta_neto ?? i.precio_venta_con_iva ?? 0) * i.cantidad), 0
-      )
+  const total = totalComprobante(comprobante)
 
   const nombreEmpresa = empresa.razon_social || empresa.nombre || 'Distribuidora'
 
   return `
   <div class="copia">
     <div class="header">
-      <div class="empresa">${nombreEmpresa}</div>
-      ${empresa.cuit ? `<div class="dato">CUIT: ${empresa.cuit}</div>` : ''}
-      ${empresa.ubicacion ? `<div class="dato">${empresa.ubicacion}</div>` : ''}
+      <div class="empresa">${esc(nombreEmpresa)}</div>
+      ${empresa.cuit ? `<div class="dato">CUIT: ${esc(empresa.cuit)}</div>` : ''}
+      ${empresa.ubicacion ? `<div class="dato">${esc(empresa.ubicacion)}</div>` : ''}
       <div class="dato">${formatearFecha(comprobante.fecha || new Date())}</div>
       <div class="header-nro">
-        <div class="tipo">${tipo}</div>
+        <div class="tipo">PEDIDO · ${tipo}</div>
         <div class="nro">N° ${comprobante.numero}</div>
       </div>
     </div>
@@ -37,9 +35,9 @@ function htmlCopia(comprobante, empresa, tipo) {
     <div class="bloque">
       <div class="titulo">Cliente</div>
       <div class="grilla">
-        <div><div class="lbl">Razón Social</div><div class="val">${comprobante.razon_social || '—'}</div></div>
-        <div><div class="lbl">CUIT</div><div class="val mono">${comprobante.cuit || comprobante.cod_cliente || '—'}</div></div>
-        ${comprobante.domicilio ? `<div><div class="lbl">Domicilio</div><div class="val">${comprobante.domicilio}</div></div>` : ''}
+        <div><div class="lbl">Razón Social</div><div class="val">${esc(comprobante.razon_social) || '—'}</div></div>
+        <div><div class="lbl">CUIT</div><div class="val mono">${esc(comprobante.cuit) || '—'}</div></div>
+        ${comprobante.domicilio ? `<div><div class="lbl">Domicilio</div><div class="val">${esc(comprobante.domicilio)}</div></div>` : ''}
       </div>
     </div>
 
@@ -48,8 +46,9 @@ function htmlCopia(comprobante, empresa, tipo) {
       <table>
         <thead>
           <tr>
-            <th>Producto</th><th class="tc">Un.</th><th class="tc">Kg</th>
-            <th class="tr">P.U.</th><th class="tr">Subt.</th>
+            <th style="width:34%">Producto</th><th class="tc" style="width:9%">Cant.</th>
+            <th class="tc" style="width:15%">Kg</th><th class="tr" style="width:21%">Precio</th>
+            <th class="tr" style="width:21%">Subt.</th>
           </tr>
         </thead>
         <tbody>${itemsHtml}</tbody>
@@ -62,6 +61,7 @@ function htmlCopia(comprobante, empresa, tipo) {
         <span class="mono">${formatearPrecio(total)}</span>
       </div>
     </div>
+    <div class="leyenda">Documento no válido como factura</div>
   </div>`
 }
 
@@ -95,6 +95,7 @@ const CSS = `
   .mono { font-family: 'Courier New', monospace; }
   .bold { font-weight: 700; }
   .totales { background: #f9fafb; padding: 5px 8px; border-radius: 4px; margin-top: 5px; }
+  .leyenda { margin-top: 6px; text-align: center; font-size: 8px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; }
   .total-final { display: flex; justify-content: space-between; font-size: 12px; font-weight: 900; }
 `
 
@@ -103,7 +104,7 @@ export function imprimirRemito(comprobante, empresa = {}) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Remito N° ${comprobante.numero}</title>
+  <title>Pedido N° ${comprobante.numero}</title>
   <style>${CSS}</style>
 </head>
 <body>

@@ -2,20 +2,17 @@ import { motion } from 'framer-motion'
 import { CheckCircle, RotateCcw, Printer } from 'lucide-react'
 import usePedidoStore from '../../store/pedidoStore'
 import { formatearPrecio, formatearFecha } from '../../lib/utils'
+import DetalleItems from '../DetalleItems'
 import { getEmpresa } from '../../lib/empresa'
 import { imprimirRemito } from '../../lib/imprimirRemito'
 import { useState } from 'react'
 
 export default function ComprobanteEmitido() {
-  const { comprobanteEmitido, cliente, items, getTotales, nuevoPedido } = usePedidoStore((s) => ({
-    comprobanteEmitido: s.comprobanteEmitido,
-    cliente: s.cliente,
-    items: s.items,
-    getTotales: s.getTotales,
-    nuevoPedido: s.nuevoPedido,
-  }))
-
-  const totales = getTotales()
+  const comprobanteEmitido = usePedidoStore((s) => s.comprobanteEmitido)
+  const cliente = usePedidoStore((s) => s.cliente)
+  const items = usePedidoStore((s) => s.items)
+  const nuevoPedido = usePedidoStore((s) => s.nuevoPedido)
+  const total = usePedidoStore((s) => s.getTotal())
 
   const [imprimiendo, setImprimiendo] = useState(false)
 
@@ -30,7 +27,7 @@ export default function ComprobanteEmitido() {
       domicilio: cliente.domicilio,
       cod_cliente: cliente.cod_cliente,
       items,
-      total_neto: totales.neto,
+      total_neto: total,
     }
     imprimirRemito(comprobante, empresa)
     setTimeout(() => setImprimiendo(false), 1500)
@@ -61,7 +58,7 @@ export default function ComprobanteEmitido() {
               transition={{ delay: 0.3 }}
               className="text-2xl font-extrabold text-texto"
             >
-              ¡Pedido emitido!
+              ¡Pedido guardado!
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
@@ -69,7 +66,7 @@ export default function ComprobanteEmitido() {
               transition={{ delay: 0.4 }}
               className="text-texto-suave font-mono text-lg mt-0.5"
             >
-              Comprobante N° <span className="font-extrabold text-primario">{comprobanteEmitido?.numero}</span>
+              Pedido N° <span className="font-extrabold text-primario">{comprobanteEmitido?.numero}</span>
             </motion.p>
           </div>
           <div className="ml-auto text-right">
@@ -112,41 +109,7 @@ export default function ComprobanteEmitido() {
               Detalle del pedido — {items.length} {items.length === 1 ? 'producto' : 'productos'}
             </h2>
             <div className="rounded-2xl overflow-hidden border border-gray-100">
-              <table className="w-full text-left">
-                <thead className="bg-fondo">
-                  <tr>
-                    <th className="px-4 py-2.5 text-xs font-bold text-texto-suave">Producto</th>
-                    <th className="px-4 py-2.5 text-xs font-bold text-texto-suave text-center">Unidades</th>
-                    <th className="px-4 py-2.5 text-xs font-bold text-texto-suave text-center">Kg</th>
-                    <th className="px-4 py-2.5 text-xs font-bold text-texto-suave text-right">Precio</th>
-                    <th className="px-4 py-2.5 text-xs font-bold text-texto-suave text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((item, i) => {
-                    const subtotal = item.precio_venta_neto * item.cantidad
-                    return (
-                      <tr key={item.cod_articulo} className={`border-t border-gray-50 ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-texto text-sm">{item.denominacion}</p>
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-sm">
-                          {item.unidades > 0 ? item.unidades : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-center font-mono text-sm">
-                          {item.peso_kg > 0 ? `${item.peso_kg} kg` : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono text-sm text-texto">
-                          {formatearPrecio(item.precio_venta_neto)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono font-bold text-sm text-primario">
-                          {formatearPrecio(subtotal)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <DetalleItems items={items} />
             </div>
           </motion.section>
 
@@ -160,7 +123,7 @@ export default function ComprobanteEmitido() {
             <div className="flex justify-between items-center">
               <span className="font-extrabold text-texto text-lg">Total</span>
               <span className="text-2xl font-extrabold font-mono text-texto">
-                {formatearPrecio(totales.neto)}
+                {formatearPrecio(total)}
               </span>
             </div>
           </motion.section>

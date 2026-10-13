@@ -3,57 +3,97 @@ import { Trash2, ArrowLeft, CheckCircle, User, MapPin, AlertTriangle } from 'luc
 import { motion, AnimatePresence } from 'framer-motion'
 import usePedidoStore from '../../store/pedidoStore'
 import { formatearPrecio } from '../../lib/utils'
+import { parsearNumero, formatearKg, superaStock, itemValido, sufijoUnidad } from '../../lib/pedido'
+
+// Input de kg que acepta coma decimal y confirma al salir o con Enter
+function InputKg({ valor, onConfirmar }) {
+  const [texto, setTexto] = useState(null)
+  const mostrado = texto ?? String(valor || '').replace('.', ',')
+  const confirmar = () => {
+    if (texto === null) return
+    const n = parsearNumero(texto)
+    if (n !== null && n >= 0) onConfirmar(n)
+    setTexto(null)
+  }
+  return (
+    <input
+      inputMode="decimal"
+      value={mostrado}
+      onChange={(e) => setTexto(e.target.value.replace(/[^\d.,]/g, ''))}
+      onBlur={confirmar}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      onFocus={(e) => e.target.select()}
+      className="w-20 h-10 text-center font-bold font-mono border-2 border-gray-200 rounded-lg
+                 focus:outline-none focus:border-primario"
+    />
+  )
+}
+
+function Contador({ valor, onCambiar }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        onClick={() => onCambiar(valor - 1)}
+        disabled={valor <= 0}
+        className="w-9 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-lg disabled:opacity-30"
+      >
+        −
+      </button>
+      <span className="w-10 text-center font-bold font-mono tabular-nums">{valor}</span>
+      <button
+        onClick={() => onCambiar(valor + 1)}
+        className="w-9 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold text-lg"
+      >
+        +
+      </button>
+    </div>
+  )
+}
 
 export default function ResumenPedido() {
-  const { cliente, items, eliminarItem, actualizarCantidad, getTotales, irA, setComprobanteEmitido, hayItemsSinStock } =
-    usePedidoStore((s) => ({
-      cliente: s.cliente,
-      items: s.items,
-      eliminarItem: s.eliminarItem,
-      actualizarCantidad: s.actualizarCantidad,
-      getTotales: s.getTotales,
-      irA: s.irA,
-      setComprobanteEmitido: s.setComprobanteEmitido,
-      hayItemsSinStock: s.hayItemsSinStock,
-    }))
+  const cliente = usePedidoStore((s) => s.cliente)
+  const items = usePedidoStore((s) => s.items)
+  const eliminarItem = usePedidoStore((s) => s.eliminarItem)
+  const actualizarItem = usePedidoStore((s) => s.actualizarItem)
+  const irA = usePedidoStore((s) => s.irA)
+  const setComprobanteEmitido = usePedidoStore((s) => s.setComprobanteEmitido)
+  const total = usePedidoStore((s) => s.getTotal())
+  const hayInvalidos = usePedidoStore((s) => s.hayItemsInvalidos())
+  const haySobreStock = usePedidoStore((s) => s.hayItemsSobreStock())
 
   const [emitiendo, setEmitiendo] = useState(false)
-  const totales = getTotales()
-  const sinStock = hayItemsSinStock()
+  const [error, setError] = useState(null)
 
   const emitir = async () => {
-    if (emitiendo || items.length === 0 || sinStock) return
+    if (emitiendo || items.length === 0 || hayInvalidos) return
     setEmitiendo(true)
+    setError(null)
     try {
-      const resultado = await window.api.comprobantes.emitir({ cliente, items, totales })
+      const resultado = await window.api.comprobantes.emitir({ cliente, items, totales: { total } })
       setComprobanteEmitido(resultado)
     } catch (err) {
       console.error('Error al emitir:', err)
-      alert('Error al emitir el comprobante. Intente nuevamente.')
+      setError('No se pudo guardar el pedido. Probá de nuevo.')
     } finally {
       setEmitiendo(false)
     }
   }
 
   return (
-    <div className="h-full flex flex-col max-w-3xl mx-auto w-full">
-
+    <div className="h-full flex flex-col max-w-4xl mx-auto w-full">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 flex-shrink-0">
-        <button
-          onClick={() => irA('productos')}
-          className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-texto" />
+        <button onClick={() => irA('productos')} className="p-3 rounded-xl hover:bg-gray-100 transition-colors">
+          <ArrowLeft className="w-6 h-6 text-texto" />
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-extrabold text-texto">Resumen del pedido</h2>
-          <p className="flex items-center gap-1.5 text-sm text-texto-suave truncate">
-            <User className="w-3.5 h-3.5 shrink-0" />
+          <p className="flex items-center gap-1.5 text-base text-texto-suave truncate">
+            <User className="w-4 h-4 shrink-0" />
             {cliente?.razon_social}
             {cliente?.domicilio && (
               <>
-                <MapPin className="w-3.5 h-3.5 ml-1 shrink-0" />
+                <MapPin className="w-4 h-4 ml-1 shrink-0" />
                 {cliente.domicilio}
               </>
             )}
@@ -64,29 +104,26 @@ export default function ResumenPedido() {
         </span>
       </div>
 
-      {/* Tabla de items */}
+      {/* Ítems */}
       <div className="flex-1 overflow-y-auto p-4">
         {items.length === 0 ? (
-          <div className="text-center text-texto-suave py-16 text-lg">
-            No hay productos en el pedido
-          </div>
+          <div className="text-center text-texto-suave py-16 text-lg">No hay productos en el pedido</div>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {/* Cabecera tabla */}
-            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-4 py-2.5 bg-fondo border-b border-gray-100">
-              <span className="text-xs font-bold text-texto-suave uppercase tracking-wide">Producto</span>
-              <span className="text-xs font-bold text-texto-suave uppercase tracking-wide text-center w-24">Unid. / Kg</span>
-              <span className="text-xs font-bold text-texto-suave uppercase tracking-wide text-right w-28">Precio</span>
-              <span className="text-xs font-bold text-texto-suave uppercase tracking-wide text-right w-28">Subtotal</span>
-              <span className="w-8" />
+            <div className="grid grid-cols-[1fr_7rem_6rem_8rem_8rem_2.5rem] gap-3 px-4 py-2.5 bg-fondo border-b border-gray-100
+                            text-xs font-bold text-texto-suave uppercase tracking-wide">
+              <span>Producto</span>
+              <span className="text-center">Cant.</span>
+              <span className="text-center">Kg</span>
+              <span className="text-right">Precio</span>
+              <span className="text-right">Subtotal</span>
+              <span />
             </div>
 
-            {/* Filas */}
             <AnimatePresence initial={false}>
               {items.map((item, idx) => {
-                const paso = item.unidad_medida === 'kg' ? 0.1 : 1
-                const subtotal = item.precio_venta_neto * item.cantidad
-                const itemSinStock = item.stock <= 0 || item.cantidad > item.stock
+                const invalido = !itemValido(item)
+                const sobreStock = superaStock(item)
                 return (
                   <motion.div
                     key={item.cod_articulo}
@@ -94,57 +131,64 @@ export default function ResumenPedido() {
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.18 }}
-                    className={`grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 px-4 py-3 items-center
-                      border-b border-gray-50 ${itemSinStock ? 'bg-red-50' : idx % 2 === 1 ? 'bg-gray-50/40' : ''}`}
+                    className={`grid grid-cols-[1fr_7rem_6rem_8rem_8rem_2.5rem] gap-3 px-4 py-3 items-center border-b border-gray-50
+                      ${invalido ? 'bg-red-50' : idx % 2 === 1 ? 'bg-gray-50/40' : ''}`}
                   >
-                    {/* Nombre */}
                     <div>
-                      <p className="font-semibold text-texto text-sm leading-tight">{item.denominacion}</p>
-                      {itemSinStock && (
+                      <p className="font-semibold text-texto leading-tight">{item.denominacion}</p>
+                      <p className="text-xs text-texto-suave">
+                        {item.markup_pct ? `Margen +${item.markup_pct}%` : 'Sin margen'}
+                        {item.tipo === 'piezas' && !item.kg_editado && ' · kg estimados'}
+                      </p>
+                      {invalido && (
                         <p className="flex items-center gap-1 text-xs font-bold text-peligro mt-0.5">
-                          <AlertTriangle className="w-3 h-3" />
-                          {item.stock <= 0 ? 'Sin stock' : `Solo hay ${item.stock} disponibles`}
+                          <AlertTriangle className="w-3 h-3" /> Cargá la cantidad o quitalo
+                        </p>
+                      )}
+                      {sobreStock && (
+                        <p className="flex items-center gap-1 text-xs font-bold text-amber-700 mt-0.5">
+                          <AlertTriangle className="w-3 h-3" /> Supera el stock cargado ({item.stock})
                         </p>
                       )}
                     </div>
 
-                    {/* Cantidad con controles */}
-                    <div className="flex items-center gap-1 w-24 justify-center">
-                      <button
-                        onClick={() => actualizarCantidad(item.cod_articulo, parseFloat((item.cantidad - paso).toFixed(1)))}
-                        className="w-6 h-6 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-sm transition-colors"
-                      >
-                        −
-                      </button>
-                      <span className="w-14 text-center font-bold font-mono text-sm tabular-nums">
-                        {item.unidad_medida === 'kg'
-                          ? `${item.cantidad.toFixed(1)}kg`
-                          : item.cantidad}
-                      </span>
-                      <button
-                        onClick={() => actualizarCantidad(item.cod_articulo, parseFloat((item.cantidad + paso).toFixed(1)))}
-                        className="w-6 h-6 rounded-md bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-sm transition-colors"
-                      >
-                        +
-                      </button>
+                    {/* Unidades / piezas */}
+                    <div className="flex justify-center">
+                      {item.tipo === 'suelto' ? (
+                        <span className="text-texto-suave">—</span>
+                      ) : (
+                        <Contador
+                          valor={item.unidades}
+                          onCambiar={(u) => actualizarItem(item.cod_articulo, { unidades: Math.max(0, u) })}
+                        />
+                      )}
                     </div>
 
-                    {/* Precio unitario */}
-                    <p className="text-right font-mono text-sm text-texto-suave w-28 tabular-nums">
-                      {formatearPrecio(item.precio_venta_neto)}
-                    </p>
+                    {/* Kg */}
+                    <div className="flex justify-center">
+                      {item.tipo === 'unidad' ? (
+                        <span className="text-texto-suave">—</span>
+                      ) : (
+                        <InputKg
+                          valor={item.peso_kg}
+                          onConfirmar={(kg) => actualizarItem(item.cod_articulo, { peso_kg: kg })}
+                        />
+                      )}
+                    </div>
 
-                    {/* Subtotal */}
-                    <p className="text-right font-extrabold font-mono text-sm text-texto w-28 tabular-nums">
-                      {formatearPrecio(subtotal)}
+                    <p className="text-right font-mono text-texto-suave tabular-nums">
+                      {formatearPrecio(item.precio_venta)}
+                      <span className="text-xs">{sufijoUnidad(item)}</span>
                     </p>
-
-                    {/* Eliminar */}
+                    <p className="text-right font-extrabold font-mono text-texto tabular-nums">
+                      {formatearPrecio(item.subtotal)}
+                    </p>
                     <button
                       onClick={() => eliminarItem(item.cod_articulo)}
-                      className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-red-50 text-peligro transition-colors"
+                      className="w-10 h-10 flex items-center justify-center rounded-xl hover:bg-red-50 text-peligro transition-colors"
+                      title="Quitar del pedido"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </motion.div>
                 )
@@ -154,26 +198,33 @@ export default function ResumenPedido() {
         )}
       </div>
 
-      {/* Footer: total + emitir */}
+      {/* Footer */}
       <div className="bg-white border-t border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <span className="text-texto-suave font-semibold text-lg">Total del pedido</span>
-          <span className="text-3xl font-extrabold font-mono text-texto tabular-nums">
-            {formatearPrecio(totales.neto)}
-          </span>
+          <span className="text-3xl font-extrabold font-mono text-texto tabular-nums">{formatearPrecio(total)}</span>
         </div>
 
-        {sinStock && (
+        {haySobreStock && !hayInvalidos && (
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2.5 mb-3">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            Algunos productos superan el stock cargado. Igual podés emitir el pedido.
+          </p>
+        )}
+        {hayInvalidos && (
           <p className="flex items-center gap-2 text-sm font-bold text-peligro bg-red-50 rounded-xl px-4 py-2.5 mb-3">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            Hay productos sin stock suficiente. Ajustá las cantidades o quitalos para poder emitir el comprobante.
+            Hay productos sin cantidad. Cargala o quitalos para emitir.
           </p>
+        )}
+        {error && (
+          <p className="text-sm font-bold text-peligro bg-red-50 rounded-xl px-4 py-2.5 mb-3">{error}</p>
         )}
 
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={emitir}
-          disabled={emitiendo || items.length === 0 || sinStock}
+          disabled={emitiendo || items.length === 0 || hayInvalidos}
           className="w-full py-4 bg-secundario text-white rounded-2xl text-xl font-extrabold
                      flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed
                      hover:bg-green-700 transition-colors"
@@ -181,12 +232,12 @@ export default function ResumenPedido() {
           {emitiendo ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Emitiendo...
+              Guardando...
             </>
           ) : (
             <>
               <CheckCircle className="w-6 h-6" />
-              Emitir comprobante
+              Confirmar pedido
             </>
           )}
         </motion.button>

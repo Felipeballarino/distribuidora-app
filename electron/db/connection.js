@@ -75,6 +75,28 @@ function inicializarDB() {
     try { db.exec(sql) } catch (_) { /* columna ya existe, ignorar */ }
   }
 
+  // Peso promedio por pieza (kg). Si un producto se vende por kg y tiene este dato,
+  // al cargar unidades el sistema calcula los kg solo (ej: 10 barras x 4,5 = 45 kg).
+  try { db.exec(`ALTER TABLE precios ADD COLUMN peso_promedio_kg REAL`) } catch (_) { /* ya existe */ }
+
+  // Limpieza: importaciones viejas duplicaban productos (no había índice único).
+  // Se conserva el registro más reciente de cada código y se crea el índice.
+  try {
+    db.exec(`
+      DELETE FROM precios
+      WHERE id NOT IN (SELECT MAX(id) FROM precios GROUP BY cod_articulo);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_precios_cod ON precios(cod_articulo);
+    `)
+  } catch (error) {
+    console.error('No se pudo crear el índice único de productos:', error)
+  }
+
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_comprobantes_numero ON comprobantes(numero)`)
+  } catch (error) {
+    console.error('No se pudo crear el índice único de comprobantes:', error)
+  }
+
   console.log('Base de datos inicializada en:', DB_PATH)
   return db
 }
