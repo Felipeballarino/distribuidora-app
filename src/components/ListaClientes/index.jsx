@@ -221,7 +221,13 @@ function parsearExcelTango(filas) {
     codigos.add(codInterno)
 
     const cuit = String(fila[7] || '').trim()
-    const domicilio = String(fila[9] || '').replace(/\s+N°\s+\d+$/, '').trim()
+    // MaxFlex exporta "Calle  N° 275": se conserva el número ("Calle 275"); "N° 0" = sin número
+    const domicilio = String(fila[9] || '')
+      .replace(/\s+N°\s+0+$/, '')
+      .replace(/\s+N°\s+(\d+)$/, ' $1')
+      .replace(/\s+0$/, '')
+      .replace(/\s+/g, ' ')
+      .trim()
     const localidad = String(fila[13] || '').replace(/^\d+\s*-\s*/, '').trim()
     const telefono = String(extra[4] || '').trim()
     const email = String(extra[6] || '').trim()

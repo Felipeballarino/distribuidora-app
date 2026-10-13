@@ -43,3 +43,4 @@ Desktop.ini
 # Datos reales de clientes (no versionar)
 *.xls
 *.xlsx
+importar/

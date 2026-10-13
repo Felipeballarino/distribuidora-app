@@ -22,7 +22,7 @@ let productos = [
   { id: 6, cod_articulo: 'F001', denominacion: 'Jamón Cocido pieza', marca: 'Paladini', unidad_medida: 'kg', peso_promedio_kg: 5, precio_neto: 6200, stock: 25, categoria: 'Fiambres' },
   { id: 7, cod_articulo: 'F002', denominacion: 'Salame Milán', marca: '', unidad_medida: 'kg', peso_promedio_kg: 1.2, precio_neto: 7800, stock: 0, categoria: 'Fiambres' },
   { id: 8, cod_articulo: 'M001', denominacion: 'Manteca x 200 g', marca: 'La Serenísima', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 850, stock: 60, categoria: 'Manteca' },
-  { id: 9, cod_articulo: 'Y001', denominacion: 'Yogur Natural x 190 g', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 320, stock: 100, categoria: 'Yogures' },
+  { id: 9, cod_articulo: 'Y001', denominacion: 'Yogur Natural x 190 g', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 320, stock: 100, categoria: 'Otros' },
   { id: 10, cod_articulo: 'C001', denominacion: 'Crema de Leche x 200 ml', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 680, stock: 48, categoria: 'Cremas' },
   { id: 11, cod_articulo: 'C004', denominacion: 'Dulce de Leche Repostero x 10 kg', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 21000, stock: 3, categoria: 'Otros' },
 ]
