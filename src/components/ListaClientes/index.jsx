@@ -3,17 +3,18 @@ import { AnimatePresence, motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
 import { Plus, Upload, Download, Pencil, Trash2, X, Search, Users } from 'lucide-react'
 
-const CONDICIONES = ['Contado', '15 días', '30 días', '60 días', '90 días']
-
 function ModalCliente({ cliente, onGuardar, onCerrar }) {
   const [form, setForm] = useState({
     cod_cliente: cliente?.cod_cliente ?? '',
     razon_social: cliente?.razon_social ?? '',
     domicilio: cliente?.domicilio ?? '',
-    condicion_venta: cliente?.condicion_venta ?? 'Contado',
+    localidad: cliente?.localidad ?? '',
+    telefono: cliente?.telefono ?? '',
+    email: cliente?.email ?? '',
     cuit: cliente?.cuit ?? '',
   })
   const [errores, setErrores] = useState({})
+  const [guardando, setGuardando] = useState(false)
 
   const handleChange = (campo, valor) => {
     setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -28,10 +29,12 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validar()) return
-    onGuardar(form)
+    setGuardando(true)
+    await onGuardar(form)
+    setGuardando(false)
   }
 
   return (
@@ -41,9 +44,9 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
       >
-        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-xl font-extrabold text-texto">
             {cliente ? 'Editar Cliente' : 'Nuevo Cliente'}
           </h2>
@@ -52,28 +55,16 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-texto-suave mb-1">Código *</label>
-              <input
-                value={form.cod_cliente}
-                onChange={(e) => handleChange('cod_cliente', e.target.value)}
-                placeholder="001"
-                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.cod_cliente ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
-              />
-              {errores.cod_cliente && <p className="text-peligro text-xs mt-1">{errores.cod_cliente}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-texto-suave mb-1">Condición de Venta</label>
-              <select
-                value={form.condicion_venta}
-                onChange={(e) => handleChange('condicion_venta', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
-              >
-                {CONDICIONES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+          <div>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Código *</label>
+            <input
+              value={form.cod_cliente}
+              onChange={(e) => handleChange('cod_cliente', e.target.value)}
+              placeholder="001"
+              className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.cod_cliente ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+            />
+            {errores.cod_cliente && <p className="text-peligro text-xs mt-1">{errores.cod_cliente}</p>}
           </div>
 
           <div>
@@ -98,12 +89,44 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-texto-suave mb-1">CUIT</label>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Localidad</label>
             <input
-              value={form.cuit}
-              onChange={(e) => handleChange('cuit', e.target.value)}
-              placeholder="30-12345678-9"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+              value={form.localidad}
+              onChange={(e) => handleChange('localidad', e.target.value)}
+              placeholder="Villa María"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-texto-suave mb-1">Teléfono</label>
+              <input
+                value={form.telefono}
+                onChange={(e) => handleChange('telefono', e.target.value)}
+                placeholder="2664123456"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-texto-suave mb-1">CUIT</label>
+              <input
+                value={form.cuit}
+                onChange={(e) => handleChange('cuit', e.target.value)}
+                placeholder="30-12345678-9"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Email</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="cliente@mail.com"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
             />
           </div>
 
@@ -117,9 +140,11 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-primario text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-colors"
+              disabled={guardando}
+              className="flex-1 py-3 bg-primario text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              Guardar
+              {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              {guardando ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -129,6 +154,13 @@ function ModalCliente({ cliente, onGuardar, onCerrar }) {
 }
 
 function ModalConfirmarEliminar({ cliente, onConfirmar, onCerrar }) {
+  const [eliminando, setEliminando] = useState(false)
+
+  const handleConfirmar = async () => {
+    setEliminando(true)
+    await onConfirmar()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <motion.div
@@ -151,10 +183,12 @@ function ModalConfirmarEliminar({ cliente, onConfirmar, onCerrar }) {
             Cancelar
           </button>
           <button
-            onClick={onConfirmar}
-            className="flex-1 py-3 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700"
+            onClick={handleConfirmar}
+            disabled={eliminando}
+            className="flex-1 py-3 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            Eliminar
+            {eliminando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {eliminando ? 'Eliminando...' : 'Eliminar'}
           </button>
         </div>
       </motion.div>
@@ -162,17 +196,53 @@ function ModalConfirmarEliminar({ cliente, onConfirmar, onCerrar }) {
   )
 }
 
-const BADGE_CONDICION = {
-  'Contado': 'bg-green-100 text-green-700',
-  '15 días': 'bg-yellow-100 text-yellow-700',
-  '30 días': 'bg-orange-100 text-orange-700',
-  '60 días': 'bg-red-100 text-red-700',
-  '90 días': 'bg-red-100 text-red-700',
+// Parsea el formato de Tango (dos filas por cliente)
+function parsearExcelTango(filas) {
+  const clientes = []
+  const codigos = new Set()
+
+  for (let i = 0; i < filas.length; i++) {
+    const fila = filas[i]
+    if (fila[0] !== 'C') continue
+
+    const razon = String(fila[4] || '').trim()
+    if (!razon) continue
+
+    // La fila extra solo existe si la siguiente fila tiene primera celda vacía/null
+    let extra = []
+    if (i + 1 < filas.length && !filas[i + 1][0]) {
+      extra = filas[i + 1]
+      i++ // saltar la fila extra
+    }
+
+    // El código interno está en la columna 17 de la fila extra
+    const codInterno = String(extra[17] || '').trim()
+    if (!codInterno || codigos.has(codInterno)) continue
+    codigos.add(codInterno)
+
+    const cuit = String(fila[7] || '').trim()
+    const domicilio = String(fila[9] || '').replace(/\s+N°\s+\d+$/, '').trim()
+    const localidad = String(fila[13] || '').replace(/^\d+\s*-\s*/, '').trim()
+    const telefono = String(extra[4] || '').trim()
+    const email = String(extra[6] || '').trim()
+
+    clientes.push({
+      cod_cliente: codInterno,
+      razon_social: razon,
+      cuit: /^00-00000000-0$/.test(cuit) ? '' : cuit,
+      domicilio: domicilio.startsWith('SIN ESPECIFICAR') ? '' : domicilio,
+      localidad,
+      telefono: telefono.length <= 1 ? '' : telefono,
+      email,
+    })
+  }
+  return clientes
 }
 
 export default function ListaClientes() {
   const [clientes, setClientes] = useState([])
   const [cargando, setCargando] = useState(true)
+  const [importando, setImportando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [modalAbierto, setModalAbierto] = useState(false)
   const [clienteEditando, setClienteEditando] = useState(null)
@@ -194,6 +264,9 @@ export default function ListaClientes() {
       c.razon_social.toLowerCase().includes(q) ||
       c.cod_cliente.toLowerCase().includes(q) ||
       (c.domicilio || '').toLowerCase().includes(q) ||
+      (c.localidad || '').toLowerCase().includes(q) ||
+      (c.telefono || '').includes(q) ||
+      (c.email || '').toLowerCase().includes(q) ||
       (c.cuit || '').includes(q)
     )
   })
@@ -220,11 +293,13 @@ export default function ListaClientes() {
       'Código': c.cod_cliente,
       'Razón Social': c.razon_social,
       'Domicilio': c.domicilio || '',
-      'Condición de Venta': c.condicion_venta || 'Contado',
+      'Localidad': c.localidad || '',
+      'Teléfono': c.telefono || '',
+      'Email': c.email || '',
       'CUIT': c.cuit || '',
     }))
     const ws = XLSX.utils.json_to_sheet(datos)
-    ws['!cols'] = [{ wch: 8 }, { wch: 35 }, { wch: 30 }, { wch: 20 }, { wch: 16 }]
+    ws['!cols'] = [{ wch: 8 }, { wch: 35 }, { wch: 30 }, { wch: 20 }, { wch: 14 }, { wch: 28 }, { wch: 18 }, { wch: 16 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
     XLSX.writeFile(wb, 'lista_clientes.xlsx')
@@ -233,15 +308,37 @@ export default function ListaClientes() {
   const handleImportar = (e) => {
     const file = e.target.files[0]
     if (!file) return
+    setImportando(true)
     const reader = new FileReader()
     reader.onload = async (evt) => {
       const wb = XLSX.read(evt.target.result, { type: 'array' })
       const ws = wb.Sheets[wb.SheetNames[0]]
-      const filas = XLSX.utils.sheet_to_json(ws)
-      const resultado = await window.api.clientes.importar(filas)
+      // Intentar detectar formato Tango (filas crudas)
+      const filasCrudas = XLSX.utils.sheet_to_json(ws, { header: 1 })
+      const esTango = filasCrudas.some((f) => f[0] === 'C' || f[0] === 'P')
+
+      let clientesParseados
+      if (esTango) {
+        clientesParseados = parsearExcelTango(filasCrudas)
+      } else {
+        const filasPlanas = XLSX.utils.sheet_to_json(ws)
+        clientesParseados = filasPlanas.map((f) => ({
+          cod_cliente: String(f['Código'] || f['Codigo'] || f.cod_cliente || '').trim(),
+          razon_social: String(f['Razón Social'] || f['Razon Social'] || f.razon_social || '').trim(),
+          domicilio: String(f['Domicilio'] || f.domicilio || '').trim(),
+          localidad: String(f['Localidad'] || f.localidad || '').trim(),
+          telefono: String(f['Teléfono'] || f['Telefono'] || f.telefono || '').trim(),
+          email: String(f['Email'] || f.email || '').trim(),
+          cuit: String(f['CUIT'] || f.cuit || '').trim(),
+        })).filter((c) => c.cod_cliente && c.razon_social)
+      }
+
+      const validos = clientesParseados.filter((c) => c.cod_cliente && c.razon_social)
+      const resultado = await window.api.clientes.importar(validos)
       alert(`✓ Se importaron ${resultado.importados} clientes correctamente.`)
       cargar()
       e.target.value = ''
+      setImportando(false)
     }
     reader.readAsArrayBuffer(file)
   }
@@ -252,16 +349,19 @@ export default function ListaClientes() {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-texto">Lista de Clientes</h1>
-          <p className="text-texto-suave mt-0.5">{clientes.length} clientes · Columnas Excel: Código, Razón Social, Domicilio, Condición de Venta, CUIT</p>
+          <p className="text-texto-suave mt-0.5">{clientes.length} clientes</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportar} />
           <button
             onClick={() => importRef.current.click()}
-            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm"
+            disabled={importando}
+            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm disabled:opacity-60"
           >
-            <Upload className="w-4 h-4" />
-            Importar Excel
+            {importando
+              ? <div className="w-4 h-4 border-2 border-primario border-t-transparent rounded-full animate-spin" />
+              : <Upload className="w-4 h-4" />}
+            {importando ? 'Importando...' : 'Importar Excel'}
           </button>
           <button
             onClick={handleExportar}
@@ -286,7 +386,7 @@ export default function ListaClientes() {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, código, domicilio o CUIT..."
+          placeholder="Buscar por nombre, código, localidad, teléfono, email o CUIT..."
           className="w-full pl-12 pr-4 py-3 text-base rounded-2xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primario"
         />
       </div>
@@ -309,8 +409,10 @@ export default function ListaClientes() {
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Código</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Razón Social</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Domicilio</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Cond. Venta</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">CUIT</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Localidad</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Teléfono</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Email</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide w-40">CUIT</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Acciones</th>
               </tr>
             </thead>
@@ -322,13 +424,11 @@ export default function ListaClientes() {
                 >
                   <td className="px-4 py-3 font-mono text-sm text-texto-suave">{c.cod_cliente}</td>
                   <td className="px-4 py-3 font-semibold text-texto">{c.razon_social}</td>
-                  <td className="px-4 py-3 text-sm text-texto-suave">{c.domicilio}</td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${BADGE_CONDICION[c.condicion_venta] || 'bg-gray-100 text-gray-600'}`}>
-                      {c.condicion_venta}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm text-texto-suave">{c.cuit}</td>
+                  <td className="px-4 py-3 text-sm text-texto-suave">{c.domicilio || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-texto-suave">{c.localidad || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-sm text-texto-suave">{c.telefono || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-texto-suave">{c.email || '—'}</td>
+                  <td className="px-4 py-3 font-mono text-sm text-texto-suave whitespace-nowrap">{c.cuit || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-center">
                       <button

@@ -45,6 +45,8 @@ const usePedidoStore = create((set, get) => ({
       unidades,
       peso_kg,
       cantidad,
+      // sin dato de stock cargado se trata como sin stock (0), no como ilimitado
+      stock: producto.stock ?? 0,
     }
 
     const { items } = get()
@@ -64,17 +66,23 @@ const usePedidoStore = create((set, get) => ({
       return
     }
     set({
-      items: get().items.map((i) =>
-        i.cod_articulo === cod_articulo
-          ? {
-              ...i,
-              cantidad,
-              // si es kg, sincronizamos peso_kg con la cantidad editada en resumen
-              peso_kg: i.unidad_medida === 'kg' ? cantidad : i.peso_kg,
-            }
-          : i
-      ),
+      items: get().items.map((i) => {
+        if (i.cod_articulo !== cod_articulo) return i
+        const tope = Math.min(cantidad, i.stock)
+        return {
+          ...i,
+          cantidad: tope,
+          // si es kg, sincronizamos peso_kg con la cantidad editada en resumen
+          peso_kg: i.unidad_medida === 'kg' ? tope : i.peso_kg,
+        }
+      }),
     })
+  },
+
+  // true si algún ítem del pedido supera el stock disponible
+  hayItemsSinStock: () => {
+    const { items } = get()
+    return items.some((i) => i.stock <= 0 || i.cantidad > i.stock)
   },
 
   eliminarItem: (cod_articulo) => {

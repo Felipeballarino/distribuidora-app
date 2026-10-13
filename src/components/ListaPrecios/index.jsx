@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { Plus, Upload, Download, Pencil, Trash2, X, Search, Package } from 'lucide-react'
 import { formatearPrecio } from '../../lib/utils'
 
-const CATEGORIAS = ['Quesos', 'Manteca', 'Yogures', 'Leche', 'Cremas', 'Otros']
+const CATEGORIAS = ['Quesos', 'Manteca', 'Yogures', 'Fiambres', 'Cremas', 'Otros']
 const UNIDADES = ['unid', 'kg']
 const IVA = 0.21
 
@@ -12,22 +12,17 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
   const [form, setForm] = useState({
     cod_articulo: producto?.cod_articulo ?? '',
     denominacion: producto?.denominacion ?? '',
+    marca: producto?.marca ?? '',
     unidad_medida: producto?.unidad_medida ?? 'unid',
     precio_neto: producto?.precio_neto ?? '',
-    precio_con_iva: producto?.precio_con_iva ?? '',
+    stock: producto?.stock ?? '',
     categoria: producto?.categoria ?? 'Quesos',
   })
   const [errores, setErrores] = useState({})
+  const [guardando, setGuardando] = useState(false)
 
   const handleChange = (campo, valor) => {
-    setForm((prev) => {
-      const next = { ...prev, [campo]: valor }
-      if (campo === 'precio_neto') {
-        const n = parseFloat(valor)
-        if (!isNaN(n)) next.precio_con_iva = (n * (1 + IVA)).toFixed(2)
-      }
-      return next
-    })
+    setForm((prev) => ({ ...prev, [campo]: valor }))
     if (errores[campo]) setErrores((prev) => ({ ...prev, [campo]: null }))
   }
 
@@ -40,14 +35,17 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
     return Object.keys(e).length === 0
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!validar()) return
-    onGuardar({
+    setGuardando(true)
+    await onGuardar({
       ...form,
       precio_neto: parseFloat(form.precio_neto),
-      precio_con_iva: parseFloat(form.precio_con_iva) || parseFloat(form.precio_neto) * (1 + IVA),
+      precio_con_iva: parseFloat(form.precio_neto) * (1 + IVA),
+      stock: form.stock !== '' ? parseInt(form.stock) : null,
     })
+    setGuardando(false)
   }
 
   return (
@@ -57,9 +55,9 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
       >
-        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100">
+        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-xl font-extrabold text-texto">
             {producto ? 'Editar Producto' : 'Nuevo Producto'}
           </h2>
@@ -68,7 +66,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-texto-suave mb-1">Código *</label>
@@ -103,34 +101,41 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             {errores.denominacion && <p className="text-peligro text-xs mt-1">{errores.denominacion}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-texto-suave mb-1">Precio Neto *</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.precio_neto}
-                onChange={(e) => handleChange('precio_neto', e.target.value)}
-                placeholder="1000.00"
-                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.precio_neto ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
-              />
-              {errores.precio_neto && <p className="text-peligro text-xs mt-1">{errores.precio_neto}</p>}
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-texto-suave mb-1">
-                Precio c/IVA <span className="font-normal text-xs">(21% auto)</span>
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.precio_con_iva}
-                onChange={(e) => handleChange('precio_con_iva', e.target.value)}
-                placeholder="1210.00"
-                className="w-full border border-blue-200 bg-blue-50 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Marca</label>
+            <input
+              value={form.marca}
+              onChange={(e) => handleChange('marca', e.target.value)}
+              placeholder="La Serenísima"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Stock</label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.stock}
+              onChange={(e) => handleChange('stock', e.target.value)}
+              placeholder="0"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-texto-suave mb-1">Precio *</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.precio_neto}
+              onChange={(e) => handleChange('precio_neto', e.target.value)}
+              placeholder="1000.00"
+              className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.precio_neto ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+            />
+            {errores.precio_neto && <p className="text-peligro text-xs mt-1">{errores.precio_neto}</p>}
           </div>
 
           <div>
@@ -154,9 +159,11 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-primario text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-colors"
+              disabled={guardando}
+              className="flex-1 py-3 bg-primario text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              Guardar
+              {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              {guardando ? 'Guardando...' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -166,6 +173,13 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
 }
 
 function ModalConfirmarEliminar({ producto, onConfirmar, onCerrar }) {
+  const [eliminando, setEliminando] = useState(false)
+
+  const handleConfirmar = async () => {
+    setEliminando(true)
+    await onConfirmar()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <motion.div
@@ -188,10 +202,12 @@ function ModalConfirmarEliminar({ producto, onConfirmar, onCerrar }) {
             Cancelar
           </button>
           <button
-            onClick={onConfirmar}
-            className="flex-1 py-3 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700"
+            onClick={handleConfirmar}
+            disabled={eliminando}
+            className="flex-1 py-3 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            Eliminar
+            {eliminando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {eliminando ? 'Eliminando...' : 'Eliminar'}
           </button>
         </div>
       </motion.div>
@@ -202,6 +218,7 @@ function ModalConfirmarEliminar({ producto, onConfirmar, onCerrar }) {
 export default function ListaPrecios() {
   const [precios, setPrecios] = useState([])
   const [cargando, setCargando] = useState(true)
+  const [importando, setImportando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [modalAbierto, setModalAbierto] = useState(false)
   const [productoEditando, setProductoEditando] = useState(null)
@@ -217,12 +234,16 @@ export default function ListaPrecios() {
 
   useEffect(() => { cargar() }, [])
 
+  const normalizar = (s) =>
+    String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
   const filtrados = precios.filter((p) => {
-    const q = busqueda.toLowerCase()
+    const q = normalizar(busqueda)
     return (
-      p.denominacion.toLowerCase().includes(q) ||
-      p.cod_articulo.toLowerCase().includes(q) ||
-      (p.categoria || '').toLowerCase().includes(q)
+      normalizar(p.denominacion).includes(q) ||
+      normalizar(p.cod_articulo).includes(q) ||
+      normalizar(p.marca).includes(q) ||
+      normalizar(p.categoria).includes(q)
     )
   })
 
@@ -247,13 +268,14 @@ export default function ListaPrecios() {
     const datos = precios.map((p) => ({
       'Código': p.cod_articulo,
       'Denominación': p.denominacion,
+      'Marca': p.marca || '',
       'Unidad': p.unidad_medida,
-      'Precio Neto': p.precio_neto,
-      'Precio c/IVA': p.precio_con_iva,
+      'Precio': p.precio_neto,
+      'Stock': p.stock ?? '',
       'Categoría': p.categoria || '',
     }))
     const ws = XLSX.utils.json_to_sheet(datos)
-    ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 8 }, { wch: 14 }, { wch: 14 }, { wch: 14 }]
+    ws['!cols'] = [{ wch: 10 }, { wch: 35 }, { wch: 18 }, { wch: 8 }, { wch: 14 }, { wch: 10 }, { wch: 14 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Precios')
     XLSX.writeFile(wb, 'lista_precios.xlsx')
@@ -262,6 +284,7 @@ export default function ListaPrecios() {
   const handleImportar = (e) => {
     const file = e.target.files[0]
     if (!file) return
+    setImportando(true)
     const reader = new FileReader()
     reader.onload = async (evt) => {
       const wb = XLSX.read(evt.target.result, { type: 'array' })
@@ -270,6 +293,7 @@ export default function ListaPrecios() {
       const resultado = await window.api.productos.importar(filas)
       alert(`✓ Se importaron ${resultado.importados} productos correctamente.`)
       cargar()
+      setImportando(false)
       e.target.value = ''
     }
     reader.readAsArrayBuffer(file)
@@ -281,16 +305,19 @@ export default function ListaPrecios() {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-2xl font-extrabold text-texto">Lista de Precios</h1>
-          <p className="text-texto-suave mt-0.5">{precios.length} productos · Columnas Excel: Código, Denominación, Unidad, Precio Neto, Precio c/IVA, Categoría</p>
+          <p className="text-texto-suave mt-0.5">{precios.length} productos</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <input ref={importRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleImportar} />
           <button
             onClick={() => importRef.current.click()}
-            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm"
+            disabled={importando}
+            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm disabled:opacity-60"
           >
-            <Upload className="w-4 h-4" />
-            Importar Excel
+            {importando
+              ? <div className="w-4 h-4 border-2 border-primario border-t-transparent rounded-full animate-spin" />
+              : <Upload className="w-4 h-4" />}
+            {importando ? 'Importando...' : 'Importar Excel'}
           </button>
           <button
             onClick={handleExportar}
@@ -337,9 +364,10 @@ export default function ListaPrecios() {
               <tr>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Código</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Denominación</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Marca</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Unidad</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-right">Precio Neto</th>
-                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-right">Precio c/IVA</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-right">Precio</th>
+                <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Stock</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Categoría</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide text-center">Acciones</th>
               </tr>
@@ -352,13 +380,14 @@ export default function ListaPrecios() {
                 >
                   <td className="px-4 py-3 font-mono text-sm text-texto-suave">{p.cod_articulo}</td>
                   <td className="px-4 py-3 font-semibold text-texto">{p.denominacion}</td>
+                  <td className="px-4 py-3 text-sm text-texto-suave">{p.marca || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${p.unidad_medida === 'kg' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                       {p.unidad_medida}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-mono text-right text-texto">{formatearPrecio(p.precio_neto)}</td>
-                  <td className="px-4 py-3 font-mono text-right font-bold text-primario">{formatearPrecio(p.precio_con_iva)}</td>
+                  <td className="px-4 py-3 font-mono text-right font-bold text-primario">{formatearPrecio(p.precio_neto)}</td>
+                  <td className="px-4 py-3 text-center font-mono text-sm text-texto">{p.stock ?? '—'}</td>
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.categoria}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-center">

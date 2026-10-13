@@ -5,8 +5,8 @@ import { useProductos } from '../../hooks/useProductos'
 import usePedidoStore from '../../store/pedidoStore'
 import { formatearPrecio } from '../../lib/utils'
 
-const CATEGORIAS = ['Todos', 'Quesos', 'Manteca', 'Yogures', 'Leche', 'Cremas']
-const MARKUPS_RAPIDOS = [0, 5, 10, 15, 20, 30]
+const CATEGORIAS = ['Todos', 'Quesos', 'Manteca', 'Yogures', 'Fiambres', 'Cremas']
+const MARKUPS_RAPIDOS = [0, 10, 15, 20, 25, 30]
 
 export default function SelectorProducto() {
   const { productos, cargando, categoriaActiva, buscar, cargarPorCategoria } = useProductos()
@@ -20,6 +20,7 @@ export default function SelectorProducto() {
 
   const [unidades, setUnidades] = useState({})
   const [pesos, setPesos] = useState({})
+  const [pesosRaw, setPesosRaw] = useState({})
   const [markups, setMarkups] = useState({})
   const [agregados, setAgregados] = useState({})
   // null = sin preset seleccionado (valores mixtos o todos en 0 por defecto)
@@ -38,19 +39,23 @@ export default function SelectorProducto() {
   const getMarkup = (cod) => markups[cod] ?? 0
 
   const calcularPrecioVenta = (producto, markupPct) => {
-    const neto = producto.precio_neto * (1 + markupPct / 100)
-    return neto * 1.21
+    return producto.precio_neto * (1 + markupPct / 100)
   }
 
-  const cambiarUnidades = (cod, delta) => {
-    setUnidades((prev) => ({ ...prev, [cod]: Math.max(1, (prev[cod] ?? 1) + delta) }))
+  const cambiarUnidades = (cod, delta, stockMax) => {
+    setUnidades((prev) => {
+      const nuevo = (prev[cod] ?? 1) + delta
+      const max = stockMax != null ? stockMax : Infinity
+      return { ...prev, [cod]: Math.max(1, Math.min(nuevo, max)) }
+    })
   }
 
-  const cambiarPeso = (cod, delta) => {
-    setPesos((prev) => ({
-      ...prev,
-      [cod]: Math.max(1, (prev[cod] ?? 1) + delta),
-    }))
+  const cambiarPeso = (cod, delta, stockMax) => {
+    setPesos((prev) => {
+      const nuevo = (prev[cod] ?? 1) + delta
+      const max = stockMax != null ? stockMax : Infinity
+      return { ...prev, [cod]: Math.max(1, Math.min(nuevo, max)) }
+    })
   }
 
   const manejarAgregar = (producto) => {
@@ -176,6 +181,11 @@ export default function SelectorProducto() {
                 const esKg = producto.unidad_medida === 'kg'
                 const markup = getMarkup(cod)
                 const precioVenta = calcularPrecioVenta(producto, markup)
+                // sin dato de stock cargado se trata como sin stock (0), no como ilimitado
+                const stockMax = producto.stock ?? 0
+                const unidadesActuales = getUnidades(cod)
+                const sinStock = stockMax === 0
+                const enLimite = unidadesActuales >= stockMax
 
                 return (
                   <motion.div
@@ -183,24 +193,31 @@ export default function SelectorProducto() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.02 }}
-                    className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 flex flex-col gap-2.5"
+                    className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
                   >
-                    {/* Nombre */}
-                    <p className="text-sm font-bold text-texto leading-tight line-clamp-2 min-h-[2.5rem]">
-                      {producto.denominacion}
-                    </p>
-
-                    {/* Costo y precio de venta */}
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-texto-suave">
-                        Costo: <span className="font-mono">{formatearPrecio(producto.precio_con_iva)}</span>
-                      </span>
-                      <span className="text-xs text-texto-suave">{producto.unidad_medida}</span>
+                    {/* Encabezado: nombre + unidad + stock */}
+                    <div className="px-3 pt-3 pb-2">
+                      <div className="flex items-start gap-1 mb-1">
+                        <p className="flex-1 text-sm font-bold text-texto leading-tight line-clamp-2 min-h-[2.5rem]">
+                          {producto.denominacion}
+                        </p>
+                        <span className={`shrink-0 text-xs font-bold px-1.5 py-0.5 rounded-lg mt-0.5
+                          ${esKg ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {producto.unidad_medida}
+                        </span>
+                      </div>
+                      {stockMax != null && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-block
+                          ${sinStock ? 'bg-red-100 text-peligro' : stockMax <= 5 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          Stock: {stockMax}
+                        </span>
+                      )}
                     </div>
 
-                    {/* Campo % recargo */}
-                    <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5">
-                      <Percent className="w-3.5 h-3.5 text-texto-suave shrink-0" />
+                    {/* Precio base + recargo + precio venta */}
+                    <div className="mx-3 mb-2 bg-gray-50 rounded-xl px-2.5 py-2 flex items-center gap-1.5">
+                      <span className="text-xs text-texto-suave font-mono">{formatearPrecio(producto.precio_neto)}</span>
+                      <Percent className="w-3 h-3 text-texto-suave shrink-0 ml-auto" />
                       <input
                         type="number"
                         min="0"
@@ -210,97 +227,117 @@ export default function SelectorProducto() {
                         onChange={(e) => {
                           const val = parseFloat(e.target.value)
                           setMarkupGlobal(null)
-                          setMarkups((prev) => ({
-                            ...prev,
-                            [cod]: isNaN(val) || val < 0 ? 0 : val,
-                          }))
+                          setMarkups((prev) => ({ ...prev, [cod]: isNaN(val) || val < 0 ? 0 : val }))
                         }}
-                        className="w-12 text-center text-sm font-bold font-mono bg-transparent border-none
-                                   focus:outline-none focus:ring-1 focus:ring-primario rounded"
+                        className="w-9 text-center text-xs font-bold font-mono bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primario rounded"
                       />
-                      <span className="text-xs text-texto-suave">recargo</span>
-                      <span className="ml-auto text-sm font-extrabold font-mono text-primario">
+                      <span className="text-lg font-extrabold font-mono text-primario ml-1">
                         {formatearPrecio(precioVenta)}
                       </span>
                     </div>
 
-                    {/* Unidades */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-texto-suave w-14 shrink-0">Unidades</span>
-                      <button
-                        onClick={() => cambiarUnidades(cod, -1)}
-                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                      >
-                        <Minus className="w-3 h-3 text-texto" />
-                      </button>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={getUnidades(cod)}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value)
-                          setUnidades((prev) => ({ ...prev, [cod]: isNaN(val) || val < 1 ? 1 : val }))
-                        }}
-                        className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5
-                                   focus:outline-none focus:border-primario"
-                      />
-                      <button
-                        onClick={() => cambiarUnidades(cod, 1)}
-                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                      >
-                        <Plus className="w-3 h-3 text-texto" />
-                      </button>
+                    {/* Controles: Unidades y Kg en dos columnas */}
+                    <div className="grid grid-cols-2 gap-2 px-3 pb-2">
+                      {/* Unidades */}
+                      <div>
+                        <p className="text-xs text-texto-suave mb-1 font-semibold">Unid.</p>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => cambiarUnidades(cod, -1, stockMax)}
+                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                          >
+                            <Minus className="w-3 h-3 text-texto" />
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            max={stockMax ?? undefined}
+                            step="1"
+                            value={unidadesActuales}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value)
+                              const max = stockMax ?? Infinity
+                              setUnidades((prev) => ({ ...prev, [cod]: isNaN(val) || val < 1 ? 1 : Math.min(val, max) }))
+                            }}
+                            className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5 focus:outline-none focus:border-primario"
+                          />
+                          <button
+                            onClick={() => cambiarUnidades(cod, 1, stockMax)}
+                            disabled={enLimite}
+                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Plus className="w-3 h-3 text-texto" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Kg */}
+                      <div>
+                        <p className="text-xs text-texto-suave mb-1 font-semibold">Kg</p>
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => cambiarPeso(cod, -1, stockMax)}
+                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                          >
+                            <Minus className="w-3 h-3 text-texto" />
+                          </button>
+                          <input
+                            type="number"
+                            min="0.1"
+                            max={stockMax ?? undefined}
+                            step="0.1"
+                            value={pesosRaw[cod] !== undefined ? pesosRaw[cod] : getPeso(cod)}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setPesosRaw((prev) => ({ ...prev, [cod]: raw }))
+                              const val = parseFloat(raw)
+                              const max = stockMax != null ? stockMax : Infinity
+                              if (!isNaN(val) && val > 0) {
+                                setPesos((prev) => ({ ...prev, [cod]: Math.min(val, max) }))
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const val = parseFloat(e.target.value)
+                              const max = stockMax != null ? stockMax : Infinity
+                              const final = isNaN(val) || val <= 0 ? 1 : Math.min(val, max)
+                              setPesos((prev) => ({ ...prev, [cod]: final }))
+                              setPesosRaw((prev) => ({ ...prev, [cod]: undefined }))
+                            }}
+                            className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5 focus:outline-none focus:border-primario"
+                          />
+                          <button
+                            onClick={() => cambiarPeso(cod, 1, stockMax)}
+                            disabled={stockMax != null && getPeso(cod) >= stockMax}
+                            className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Plus className="w-3 h-3 text-texto" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Peso total en kg (siempre visible) */}
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-texto-suave w-14 shrink-0">Peso kg</span>
-                      <button
-                        onClick={() => cambiarPeso(cod, -1)}
-                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
+                    {/* Footer: subtotal + botón */}
+                    <div className="flex items-center gap-2 px-3 pb-3">
+                      <div className="flex-1">
+                        <p className="text-xs text-texto-suave">Subtotal</p>
+                        <p className="text-sm font-extrabold font-mono text-texto">
+                          {formatearPrecio(precioVenta * (esKg ? getPeso(cod) : getUnidades(cod)))}
+                        </p>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => manejarAgregar(producto)}
+                        disabled={sinStock}
+                        className={`px-4 py-2 rounded-xl font-bold text-sm transition-colors shrink-0
+                          ${sinStock
+                            ? 'bg-gray-200 text-texto-suave cursor-not-allowed'
+                            : agregados[cod]
+                              ? 'bg-secundario text-white'
+                              : 'bg-primario text-white hover:bg-blue-700'}`}
                       >
-                        <Minus className="w-3 h-3 text-texto" />
-                      </button>
-                      <input
-                        type="number"
-                        min="0.1"
-                        step="0.1"
-                        value={getPeso(cod)}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value)
-                          setPesos((prev) => ({ ...prev, [cod]: isNaN(val) || val <= 0 ? 0.1 : val }))
-                        }}
-                        className="flex-1 w-0 text-center text-sm font-bold font-mono border border-gray-200 rounded-lg py-0.5
-                                   focus:outline-none focus:border-primario"
-                      />
-                      <button
-                        onClick={() => cambiarPeso(cod, 1)}
-                        className="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors shrink-0"
-                      >
-                        <Plus className="w-3 h-3 text-texto" />
-                      </button>
+                        {sinStock ? 'Sin stock' : agregados[cod] ? '✓' : 'Agregar'}
+                      </motion.button>
                     </div>
-
-                    {/* Subtotal preview */}
-                    <div className="text-right text-xs text-texto-suave">
-                      Subtotal:{' '}
-                      <span className="font-mono font-bold text-texto">
-                        {formatearPrecio(precioVenta * (esKg ? getPeso(cod) : getUnidades(cod)))}
-                      </span>
-                    </div>
-
-                    {/* Botón agregar */}
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => manejarAgregar(producto)}
-                      className={`w-full py-1.5 rounded-lg font-bold text-sm transition-colors
-                        ${agregados[cod]
-                          ? 'bg-secundario text-white'
-                          : 'bg-primario text-white hover:bg-blue-700'}`}
-                    >
-                      {agregados[cod] ? '✓ Agregado' : 'Agregar'}
-                    </motion.button>
                   </motion.div>
                 )
               })}

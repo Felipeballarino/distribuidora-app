@@ -15,22 +15,22 @@ function emitirComprobante({ cliente, items, totales }) {
   const siguiente = obtenerUltimoNumero()
   const numero = String(siguiente).padStart(8, '0')
 
-  const stmt = db.prepare(`
-    INSERT INTO comprobantes (numero, cod_cliente, razon_social, total_neto, total_iva, total_final, items)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `)
-
-  const resultado = stmt.run([
+  db.prepare(`
+    INSERT INTO comprobantes (numero, cod_cliente, razon_social, cuit, domicilio, total_neto, total_iva, total_final, items)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run([
     numero,
     cliente.cod_cliente,
     cliente.razon_social,
+    cliente.cuit || '',
+    cliente.domicilio || '',
     totales.neto,
     totales.iva,
     totales.total,
     JSON.stringify(items),
   ])
 
-  return { id: resultado.lastInsertRowid, numero }
+  return { numero }
 }
 
 function listarComprobantes() {

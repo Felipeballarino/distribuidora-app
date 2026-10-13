@@ -5,7 +5,7 @@ function buscarClientes(termino) {
   const busqueda = `%${termino}%`
   return db
     .prepare(`
-      SELECT cod_cliente, razon_social, domicilio, condicion_venta, cuit
+      SELECT cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit
       FROM clientes
       WHERE activo = 1
         AND (razon_social LIKE ? OR cod_cliente LIKE ?)
@@ -19,39 +19,43 @@ function listarClientes() {
   const db = getDB()
   return db
     .prepare(`
-      SELECT id, cod_cliente, razon_social, domicilio, condicion_venta, cuit, activo
+      SELECT id, cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit, activo
       FROM clientes
       ORDER BY razon_social
     `)
     .all()
 }
 
-function crearCliente({ cod_cliente, razon_social, domicilio, condicion_venta, cuit }) {
+function crearCliente({ cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit }) {
   const db = getDB()
   db.prepare(`
-    INSERT INTO clientes (cod_cliente, razon_social, domicilio, condicion_venta, cuit)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO clientes (cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run([
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
-    (condicion_venta || 'Contado').trim(),
+    (localidad || '').trim(),
+    (telefono || '').trim(),
+    (email || '').trim(),
     (cuit || '').trim(),
   ])
   return { ok: true }
 }
 
-function actualizarCliente(id, { cod_cliente, razon_social, domicilio, condicion_venta, cuit }) {
+function actualizarCliente(id, { cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit }) {
   const db = getDB()
   db.prepare(`
     UPDATE clientes
-    SET cod_cliente=?, razon_social=?, domicilio=?, condicion_venta=?, cuit=?
+    SET cod_cliente=?, razon_social=?, domicilio=?, localidad=?, telefono=?, email=?, cuit=?
     WHERE id=?
   `).run([
     cod_cliente.trim(),
     razon_social.trim(),
     (domicilio || '').trim(),
-    (condicion_venta || 'Contado').trim(),
+    (localidad || '').trim(),
+    (telefono || '').trim(),
+    (email || '').trim(),
     (cuit || '').trim(),
     id,
   ])
@@ -67,20 +71,22 @@ function eliminarCliente(id) {
 function importarClientes(filas) {
   const db = getDB()
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO clientes (cod_cliente, razon_social, domicilio, condicion_venta, cuit)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT OR REPLACE INTO clientes (cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `)
   let importados = 0
   for (const f of filas) {
-    const cod = String(f['Código'] || f['Codigo'] || f.cod_cliente || '').trim()
-    const razon = String(f['Razón Social'] || f['Razon Social'] || f.razon_social || '').trim()
+    const cod = String(f.cod_cliente || '').trim()
+    const razon = String(f.razon_social || '').trim()
     if (!cod || !razon) continue
     stmt.run([
       cod,
       razon,
-      String(f['Domicilio'] || f.domicilio || '').trim(),
-      String(f['Condición de Venta'] || f['Condicion de Venta'] || f.condicion_venta || 'Contado').trim(),
-      String(f['CUIT'] || f.cuit || '').trim(),
+      String(f.domicilio || '').trim(),
+      String(f.localidad || '').trim(),
+      String(f.telefono || '').trim(),
+      String(f.email || '').trim(),
+      String(f.cuit || '').trim(),
     ])
     importados++
   }

@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const { inicializarDB } = require('./db/connection')
+const { iniciarBackupsAutomaticos } = require('./db/backup')
 const clientesDB = require('./db/clientes')
 const productosDB = require('./db/productos')
 const comprobantesDB = require('./db/comprobantes')
@@ -22,6 +23,8 @@ function crearVentana() {
     title: 'Distribuidora — Carga de Pedidos',
   })
 
+  ventana.webContents.setWindowOpenHandler(() => ({ action: 'allow' }))
+
   if (isDev) {
     ventana.loadURL('http://localhost:5173')
     ventana.webContents.openDevTools()
@@ -32,6 +35,7 @@ function crearVentana() {
 
 app.whenReady().then(() => {
   inicializarDB()
+  iniciarBackupsAutomaticos()
   crearVentana()
 
   app.on('activate', () => {

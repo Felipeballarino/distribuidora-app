@@ -39,3 +39,7 @@ Desktop.ini
 
 # Vite cache
 .vite/
+
+# Datos reales de clientes (no versionar)
+*.xls
+*.xlsx

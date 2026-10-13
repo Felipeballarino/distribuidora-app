@@ -1,53 +1,17 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Search, FileText, Printer, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatearPrecio, formatearFecha } from '../../lib/utils'
+import { getEmpresa } from '../../lib/empresa'
+import { imprimirRemito } from '../../lib/imprimirRemito'
 
 function ModalComprobante({ comprobante, onCerrar }) {
-  const printRef = useRef()
+  const [imprimiendo, setImprimiendo] = useState(false)
 
   const handleImprimir = () => {
-    const contenido = printRef.current.innerHTML
-    const ventana = window.open('', '_blank')
-    ventana.document.write(`
-      <html>
-        <head>
-          <title>Comprobante N° ${comprobante.numero}</title>
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; font-size: 13px; color: #111827; padding: 20px; }
-            h1 { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
-            .sub { color: #6b7280; font-size: 12px; }
-            .section { margin: 16px 0; }
-            .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
-            .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #f9fafb; padding: 12px; border-radius: 8px; }
-            .label { font-size: 10px; color: #6b7280; font-weight: 700; margin-bottom: 2px; }
-            .value { font-size: 13px; font-weight: 600; }
-            table { width: 100%; border-collapse: collapse; }
-            th { background: #f9fafb; padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; color: #6b7280; }
-            td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #f3f4f6; }
-            .text-right { text-align: right; }
-            .text-center { text-align: center; }
-            .font-mono { font-family: 'Courier New', monospace; }
-            .font-bold { font-weight: 700; }
-            .totales { background: #f9fafb; padding: 12px 16px; border-radius: 8px; }
-            .total-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
-            .total-final { font-size: 18px; font-weight: 900; border-top: 2px solid #e5e7eb; padding-top: 8px; margin-top: 4px; }
-            .badge { display: inline-block; background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a56db; padding-bottom: 12px; margin-bottom: 16px; }
-            .empresa { font-size: 16px; font-weight: 900; color: #1a56db; }
-            .comp-num { font-family: 'Courier New', monospace; font-size: 20px; font-weight: 900; color: #1a56db; }
-          </style>
-        </head>
-        <body>
-          ${contenido}
-        </body>
-      </html>
-    `)
-    ventana.document.close()
-    ventana.focus()
-    ventana.print()
-    ventana.close()
+    setImprimiendo(true)
+    imprimirRemito(comprobante, getEmpresa())
+    setTimeout(() => setImprimiendo(false), 1500)
   }
 
   const totales = {
@@ -74,10 +38,13 @@ function ModalComprobante({ comprobante, onCerrar }) {
           <div className="flex gap-2">
             <button
               onClick={handleImprimir}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primario text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+              disabled={imprimiendo}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primario text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              <Printer className="w-4 h-4" />
-              Imprimir
+              {imprimiendo
+                ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <Printer className="w-4 h-4" />}
+              {imprimiendo ? 'Imprimiendo...' : 'Imprimir'}
             </button>
             <button
               onClick={onCerrar}
@@ -89,70 +56,64 @@ function ModalComprobante({ comprobante, onCerrar }) {
         </div>
 
         {/* Contenido scrollable */}
-        <div className="overflow-y-auto flex-1 p-6">
-          {/* Contenido a imprimir */}
-          <div ref={printRef}>
-            {/* Header imprimible */}
-            <div className="header">
+        <div className="overflow-y-auto flex-1 p-6 space-y-4">
+
+          {/* Header empresa + comprobante */}
+          <div className="flex justify-between items-start border-b-2 border-primario pb-4">
+            <div>
+              <p className="text-base font-extrabold text-primario">Distribuidora</p>
+              <p className="text-xs text-texto-suave mt-0.5">{formatearFecha(comprobante.fecha)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-texto-suave">Comprobante N°</p>
+              <p className="text-xl font-extrabold font-mono text-primario">{comprobante.numero}</p>
+            </div>
+          </div>
+
+          {/* Datos del cliente */}
+          <div>
+            <p className="text-xs font-bold text-texto-suave uppercase tracking-wide mb-2">Datos del cliente</p>
+            <div className="grid grid-cols-2 gap-3 bg-fondo rounded-xl p-3">
               <div>
-                <div className="empresa">Distribuidora</div>
-                <div className="sub">{formatearFecha(comprobante.fecha)}</div>
+                <p className="text-xs text-texto-suave font-semibold">Razón Social</p>
+                <p className="font-bold text-texto text-sm">{comprobante.razon_social}</p>
               </div>
-              <div className="text-right">
-                <div className="sub">Comprobante N°</div>
-                <div className="comp-num">{comprobante.numero}</div>
-              </div>
-            </div>
-
-            {/* Cliente */}
-            <div className="section">
-              <div className="section-title">Datos del cliente</div>
-              <div className="grid2">
-                <div>
-                  <div className="label">Razón Social</div>
-                  <div className="value">{comprobante.razon_social}</div>
-                </div>
-                <div>
-                  <div className="label">Código</div>
-                  <div className="value font-mono">{comprobante.cod_cliente}</div>
-                </div>
+              <div>
+                <p className="text-xs text-texto-suave font-semibold">Código</p>
+                <p className="font-mono text-texto text-sm">{comprobante.cod_cliente}</p>
               </div>
             </div>
+          </div>
 
-            {/* Items */}
-            <div className="section">
-              <div className="section-title">
-                Detalle — {comprobante.items.length} {comprobante.items.length === 1 ? 'producto' : 'productos'}
-              </div>
-              <table>
-                <thead>
+          {/* Detalle de ítems */}
+          <div>
+            <p className="text-xs font-bold text-texto-suave uppercase tracking-wide mb-2">
+              Detalle — {comprobante.items.length} {comprobante.items.length === 1 ? 'producto' : 'productos'}
+            </p>
+            <div className="rounded-xl overflow-hidden border border-gray-100">
+              <table className="w-full text-left">
+                <thead className="bg-fondo">
                   <tr>
-                    <th>Producto</th>
-                    <th className="text-center">Unidades</th>
-                    <th className="text-center">Kg</th>
-                    <th className="text-right">Precio c/IVA</th>
-                    <th className="text-right">Subtotal</th>
+                    <th className="px-3 py-2 text-xs font-bold text-texto-suave">Producto</th>
+                    <th className="px-3 py-2 text-xs font-bold text-texto-suave text-center">Unid.</th>
+                    <th className="px-3 py-2 text-xs font-bold text-texto-suave text-center">Kg</th>
+                    <th className="px-3 py-2 text-xs font-bold text-texto-suave text-right">Precio</th>
+                    <th className="px-3 py-2 text-xs font-bold text-texto-suave text-right">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comprobante.items.map((item, i) => {
-                    const subtotal = item.precio_venta_con_iva * item.cantidad
+                    const precio = item.precio_venta_neto ?? item.precio_venta_con_iva ?? 0
+                    const subtotal = precio * item.cantidad
                     return (
-                      <tr key={i}>
-                        <td>
-                          <span className="font-bold">{item.denominacion}</span>
-                          {item.markup_pct > 0 && (
-                            <span className="badge ml-2">+{item.markup_pct}%</span>
-                          )}
-                        </td>
-                        <td className="text-center font-mono">{item.unidades || '—'}</td>
-                        <td className="text-center font-mono">
+                      <tr key={i} className={`border-t border-gray-50 ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                        <td className="px-3 py-2 font-semibold text-texto text-sm">{item.denominacion}</td>
+                        <td className="px-3 py-2 text-center font-mono text-sm">{item.unidades || '—'}</td>
+                        <td className="px-3 py-2 text-center font-mono text-sm">
                           {item.peso_kg > 0 ? `${item.peso_kg} kg` : '—'}
                         </td>
-                        <td className="text-right font-mono">
-                          {formatearPrecio(item.precio_venta_con_iva)}
-                        </td>
-                        <td className="text-right font-mono font-bold">
+                        <td className="px-3 py-2 text-right font-mono text-sm">{formatearPrecio(precio)}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-sm text-primario">
                           {formatearPrecio(subtotal)}
                         </td>
                       </tr>
@@ -161,23 +122,16 @@ function ModalComprobante({ comprobante, onCerrar }) {
                 </tbody>
               </table>
             </div>
-
-            {/* Totales */}
-            <div className="totales">
-              <div className="total-row">
-                <span>Neto gravado</span>
-                <span className="font-mono">{formatearPrecio(totales.neto)}</span>
-              </div>
-              <div className="total-row">
-                <span>IVA 21%</span>
-                <span className="font-mono">{formatearPrecio(totales.iva)}</span>
-              </div>
-              <div className="total-row total-final">
-                <span>Total</span>
-                <span className="font-mono">{formatearPrecio(totales.total)}</span>
-              </div>
-            </div>
           </div>
+
+          {/* Total */}
+          <div className="bg-fondo rounded-xl px-4 py-3 flex justify-between items-center">
+            <span className="font-extrabold text-texto text-lg">Total</span>
+            <span className="text-2xl font-extrabold font-mono text-texto">
+              {formatearPrecio(totales.neto)}
+            </span>
+          </div>
+
         </div>
       </motion.div>
     </div>
@@ -305,7 +259,7 @@ export default function ListaVentas() {
                                 <th className="px-3 py-2 text-left text-xs font-bold text-texto-suave">Producto</th>
                                 <th className="px-3 py-2 text-center text-xs font-bold text-texto-suave">Unid.</th>
                                 <th className="px-3 py-2 text-center text-xs font-bold text-texto-suave">Kg</th>
-                                <th className="px-3 py-2 text-right text-xs font-bold text-texto-suave">Precio c/IVA</th>
+                                <th className="px-3 py-2 text-right text-xs font-bold text-texto-suave">Precio</th>
                                 <th className="px-3 py-2 text-right text-xs font-bold text-texto-suave">Subtotal</th>
                               </tr>
                             </thead>
@@ -314,31 +268,24 @@ export default function ListaVentas() {
                                 <tr key={j} className={j % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                                   <td className="px-3 py-2 font-semibold text-texto">
                                     {item.denominacion}
-                                    {item.markup_pct > 0 && (
-                                      <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold">
-                                        +{item.markup_pct}%
-                                      </span>
-                                    )}
                                   </td>
                                   <td className="px-3 py-2 text-center font-mono">{item.unidades || '—'}</td>
                                   <td className="px-3 py-2 text-center font-mono">
                                     {item.peso_kg > 0 ? `${item.peso_kg} kg` : '—'}
                                   </td>
                                   <td className="px-3 py-2 text-right font-mono">
-                                    {formatearPrecio(item.precio_venta_con_iva)}
+                                    {formatearPrecio(item.precio_venta_neto)}
                                   </td>
                                   <td className="px-3 py-2 text-right font-mono font-bold text-primario">
-                                    {formatearPrecio(item.precio_venta_con_iva * item.cantidad)}
+                                    {formatearPrecio(item.precio_venta_neto * item.cantidad)}
                                   </td>
                                 </tr>
                               ))}
                             </tbody>
                           </table>
                           <div className="flex justify-end gap-6 px-4 py-2 bg-gray-50 text-xs font-semibold text-texto-suave border-t border-gray-100">
-                            <span>Neto: <span className="font-mono text-texto">{formatearPrecio(v.total_neto)}</span></span>
-                            <span>IVA 21%: <span className="font-mono text-texto">{formatearPrecio(v.total_iva)}</span></span>
                             <span className="text-base font-extrabold text-texto">
-                              Total: <span className="font-mono">{formatearPrecio(v.total_final)}</span>
+                              Total: <span className="font-mono">{formatearPrecio(v.total_neto)}</span>
                             </span>
                           </div>
                         </div>

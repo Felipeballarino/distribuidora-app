@@ -13,13 +13,12 @@
   ],
   "win": {
     "target": "nsis",
-    "icon": "public/assets/icon.ico"
+    "sign": null,
+    "signingHashAlgorithms": null
   },
   "nsis": {
     "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "installerLanguages": ["es_AR"],
-    "language": "3082"
+    "allowToChangeInstallationDirectory": true
   },
   "extraResources": [
     {
