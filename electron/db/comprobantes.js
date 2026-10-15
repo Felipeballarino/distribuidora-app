@@ -1,5 +1,6 @@
 const { getDB } = require('./connection')
-const { registrarMovimiento, stockActual, EPSILON } = require('./stock')
+const { registrarMovimiento, stockActual, cantidadesPorProducto, faltantesDe } = require('./stock')
+const { leerConfig } = require('./config')
 
 function obtenerUltimoNumero() {
   const fila = getDB().get(`SELECT MAX(CAST(numero AS INTEGER)) AS ultimo FROM comprobantes`)
@@ -7,11 +8,12 @@ function obtenerUltimoNumero() {
 }
 
 // Registra el pedido. Todo en una transacción:
-//  1. verifica que haya stock de cada producto (si falta, no se guarda nada)
+//  1. si está activado "bloquear ventas sin stock", verifica que alcance (si falta, no se guarda nada)
 //  2. asigna número correlativo y guarda el pedido
-//  3. descuenta el stock registrando un movimiento 'venta' por producto
+//  3. descuenta el stock registrando un movimiento 'venta' por producto (puede quedar negativo)
+//  4. si venía de una precarga, la borra y libera su reserva
 // No se calcula IVA: el total es la suma de los subtotales.
-function emitirComprobante({ cliente, items, totales }) {
+function emitirComprobante({ cliente, items, totales, precarga_id = null }) {
   // Nunca se guarda una venta con precio 0
   const sinPrecio = items.filter((i) => !(Number(i.precio_venta ?? i.precio_venta_neto) > 0))
   if (sinPrecio.length > 0) {
@@ -21,24 +23,13 @@ function emitirComprobante({ cliente, items, totales }) {
   const db = getDB()
   db.exec('BEGIN IMMEDIATE')
   try {
-    // Sumar por producto (por si un producto viniera repetido)
-    const pedidoPorProducto = new Map()
-    for (const item of items) {
-      const c = Number(item.cantidad) || 0
-      pedidoPorProducto.set(item.cod_articulo, (pedidoPorProducto.get(item.cod_articulo) || 0) + c)
-    }
-
-    const faltantes = []
-    for (const [cod, cantidad] of pedidoPorProducto) {
-      const disponible = stockActual(db, cod) ?? 0
-      if (cantidad > disponible + EPSILON) {
-        const item = items.find((i) => i.cod_articulo === cod)
-        faltantes.push({ cod_articulo: cod, denominacion: item?.denominacion, pedido: cantidad, disponible })
+    if (leerConfig(db).bloquear_sin_stock) {
+      // La reserva de su propia precarga cuenta como disponible para este pedido
+      const faltantes = faltantesDe(db, items, precarga_id)
+      if (faltantes.length > 0) {
+        db.exec('ROLLBACK')
+        return { ok: false, error: 'STOCK_INSUFICIENTE', faltantes }
       }
-    }
-    if (faltantes.length > 0) {
-      db.exec('ROLLBACK')
-      return { ok: false, error: 'STOCK_INSUFICIENTE', faltantes }
     }
 
     const numero = String(obtenerUltimoNumero()).padStart(8, '0')
@@ -52,12 +43,19 @@ function emitirComprobante({ cliente, items, totales }) {
         total, total, JSON.stringify(items)]
     )
 
-    for (const [cod, cantidad] of pedidoPorProducto) {
+    for (const [cod, cantidad] of cantidadesPorProducto(items)) {
       if (cantidad <= 0) continue
+      // Un producto borrado de la lista no tiene stock que descontar
+      if (stockActual(db, cod) === null) continue
       registrarMovimiento(db, {
         cod_articulo: cod, tipo: 'venta', cantidad: -cantidad,
         referencia: numero, nota: cliente.razon_social,
       })
+    }
+
+    if (precarga_id) {
+      db.run(`DELETE FROM reservas WHERE precarga_id = ?`, [precarga_id])
+      db.run(`DELETE FROM precargas WHERE id = ?`, [precarga_id])
     }
 
     db.exec('COMMIT')
@@ -77,13 +75,19 @@ function anularComprobante(id) {
     if (!c) { db.exec('ROLLBACK'); return { ok: false, error: 'No existe el pedido' } }
     if (c.anulado) { db.exec('ROLLBACK'); return { ok: false, error: 'El pedido ya estaba anulado' } }
 
-    for (const item of JSON.parse(c.items || '[]')) {
-      const cantidad = Number(item.cantidad) || 0
+    // Se devuelve exactamente lo que descontó la venta (así no importa en qué unidad se contaba entonces)
+    const vendidos = db.all(
+      `SELECT cod_articulo, SUM(cantidad) AS cantidad FROM movimientos_stock
+       WHERE tipo = 'venta' AND referencia = ? GROUP BY cod_articulo`,
+      [c.numero]
+    )
+    for (const v of vendidos) {
+      const cantidad = -Number(v.cantidad) || 0
       if (cantidad <= 0) continue
       // Si el producto se borró de la lista, no hay stock que devolver
-      if (stockActual(db, item.cod_articulo) === null) continue
+      if (stockActual(db, v.cod_articulo) === null) continue
       registrarMovimiento(db, {
-        cod_articulo: item.cod_articulo, tipo: 'anulacion', cantidad,
+        cod_articulo: v.cod_articulo, tipo: 'anulacion', cantidad,
         referencia: c.numero, nota: `Anulación pedido ${c.numero}`,
       })
     }

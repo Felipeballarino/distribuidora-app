@@ -1,5 +1,6 @@
 const { getDB } = require('./connection')
-const { registrarMovimiento } = require('./stock')
+const { registrarMovimiento, convertirStockSiCambiaUnidad } = require('./stock')
+const { palabrasDe, coincide } = require('./busqueda')
 
 // Nota: en la tabla `precios`, la columna `precio_neto` es el COSTO del producto.
 // El precio de venta se calcula en cada pedido aplicando el margen elegido.
@@ -9,8 +10,11 @@ const { registrarMovimiento } = require('./stock')
 // STOCK: no se edita desde acá. Solo se carga un stock inicial al crear el producto.
 // Después cambia únicamente por movimientos (ventas, ingresos, ajustes, anulaciones): ver stock.js.
 
+// `stock` es el físico; `reservado` lo apartado por precargas. Disponible = stock - reservado.
 const COLUMNAS = `id, cod_articulo, denominacion, marca, unidad_medida, peso_promedio_kg,
-                  precio_neto, stock, categoria`
+                  precio_neto, stock, categoria,
+                  (SELECT COALESCE(SUM(r.cantidad), 0) FROM reservas r
+                    WHERE r.cod_articulo = precios.cod_articulo) AS reservado`
 
 // Acepta números de Excel y texto en formato argentino: "4.500" = 4500, "4,5" = 4.5, "1.234,56"
 function aNumeroONull(valor) {
@@ -29,25 +33,13 @@ function normalizarUnidad(valor) {
 }
 
 function buscarProductos(termino) {
-  const db = getDB()
-  // Busca cada palabra por separado: "cremoso queso" encuentra "Queso Cremoso"
-  const palabras = String(termino || '').trim().split(/\s+/).filter(Boolean)
+  const palabras = palabrasDe(termino)
   if (palabras.length === 0) return buscarPorCategoria('Todos')
-
-  const condiciones = palabras.map(
-    () => `(denominacion LIKE ? OR cod_articulo LIKE ? OR marca LIKE ? OR categoria LIKE ?)`
-  )
-  const valores = palabras.flatMap((p) => {
-    const t = `%${p}%`
-    return [t, t, t, t]
-  })
-  return db.all(
-    `SELECT ${COLUMNAS} FROM precios
-     WHERE activo = 1 AND ${condiciones.join(' AND ')}
-     ORDER BY denominacion
-     LIMIT 50`,
-    valores
-  )
+  // Cada palabra por separado y sin acentos: "cremoso queso" encuentra "Queso Cremoso"
+  return getDB()
+    .all(`SELECT ${COLUMNAS} FROM precios WHERE activo = 1 ORDER BY denominacion`)
+    .filter((p) => coincide(p, ['denominacion', 'cod_articulo', 'marca', 'categoria'], palabras))
+    .slice(0, 50)
 }
 
 function buscarPorCategoria(categoria) {
@@ -108,15 +100,29 @@ function crearPrecio(datos) {
   return { ok: true }
 }
 
+// Si le agregan o sacan el peso promedio, el stock pasa de kg a piezas (o al revés) y se convierte.
 function actualizarPrecio(id, datos) {
-  getDB().run(
-    `UPDATE precios
-     SET cod_articulo=?, denominacion=?, marca=?, unidad_medida=?, peso_promedio_kg=?,
-         precio_neto=?, precio_con_iva=?, categoria=?,
-         fecha_actualizacion=CURRENT_TIMESTAMP
-     WHERE id=?`,
-    [...valoresProducto(datos), id]
-  )
+  const db = getDB()
+  const valores = valoresProducto(datos)
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const antes = db.get(`SELECT unidad_medida, peso_promedio_kg FROM precios WHERE id = ?`, [id])
+    db.run(
+      `UPDATE precios
+       SET cod_articulo=?, denominacion=?, marca=?, unidad_medida=?, peso_promedio_kg=?,
+           precio_neto=?, precio_con_iva=?, categoria=?,
+           fecha_actualizacion=CURRENT_TIMESTAMP
+       WHERE id=?`,
+      [...valores, id]
+    )
+    if (antes) {
+      convertirStockSiCambiaUnidad(db, valores[0], antes, { unidad_medida: valores[3], peso_promedio_kg: valores[4] })
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
   return { ok: true }
 }
 
@@ -126,7 +132,7 @@ function eliminarPrecio(id) {
 }
 
 // Importa desde Excel. Si el código ya existe, ACTUALIZA el producto (no lo duplica).
-// La columna Stock solo se usa como stock inicial de productos NUEVOS:
+// La columna Stock solo se usa como stock inicial de productos NUEVOS (en piezas/unidades; en kg si es fraccionado):
 // reimportar la lista de precios nunca pisa el stock que lleva el sistema.
 function importarPrecios(filas) {
   const db = getDB()
@@ -148,14 +154,15 @@ function importarPrecios(filas) {
       const valores = valoresProducto(datos)
       if (!valores[0] || !valores[1]) continue
       if (!(valores[5] > 0)) sinCosto.push(valores[1])
-      const existe = !!db.get(`SELECT 1 FROM precios WHERE cod_articulo = ?`, [valores[0]])
-      if (existe) {
+      const existente = db.get(`SELECT unidad_medida, peso_promedio_kg FROM precios WHERE cod_articulo = ?`, [valores[0]])
+      if (existente) {
         db.run(
           `UPDATE precios SET denominacion=?, marca=?, unidad_medida=?, peso_promedio_kg=?,
              precio_neto=?, precio_con_iva=?, categoria=?, activo=1, fecha_actualizacion=CURRENT_TIMESTAMP
            WHERE cod_articulo=?`,
           [...valores.slice(1), valores[0]]
         )
+        convertirStockSiCambiaUnidad(db, valores[0], existente, { unidad_medida: valores[3], peso_promedio_kg: valores[4] })
       } else {
         db.run(INSERT_PRODUCTO, valores)
         const inicial = aNumeroONull(f['Stock'] ?? f.stock)
@@ -174,7 +181,51 @@ function importarPrecios(filas) {
   return { importados, nuevos, sinCosto }
 }
 
+// Aumento (o baja) de costos por marca o categoría. Ej: { criterio: 'marca', valor: 'La Quesera', porcentaje: 15 }
+// Todo en una transacción y queda registrado en aumentos_precios.
+function aumentarCostos({ criterio, valor, porcentaje }) {
+  const columna = criterio === 'categoria' ? 'categoria' : criterio === 'marca' ? 'marca' : null
+  if (!columna) return { ok: false, error: 'Elegí si es por marca o por categoría' }
+  const nombre = String(valor || '').trim()
+  if (!nombre) return { ok: false, error: `Elegí la ${columna}` }
+  const pct = aNumeroONull(porcentaje)
+  if (pct === null || pct === 0) return { ok: false, error: 'Ingresá el porcentaje' }
+  if (pct <= -100) return { ok: false, error: 'El porcentaje no puede bajar el costo a 0 o menos' }
+
+  const db = getDB()
+  const filtro = `LOWER(TRIM(${columna})) = LOWER(TRIM(?))`
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const { cantidad } = db.get(`SELECT COUNT(*) AS cantidad FROM precios WHERE ${filtro}`, [nombre])
+    if (!cantidad) {
+      db.exec('ROLLBACK')
+      return { ok: false, error: `No hay productos de ${nombre}` }
+    }
+    db.run(
+      `UPDATE precios
+       SET precio_neto = ROUND(precio_neto * (1 + ? / 100.0), 2),
+           precio_con_iva = ROUND(precio_neto * (1 + ? / 100.0), 2),
+           fecha_actualizacion = CURRENT_TIMESTAMP
+       WHERE ${filtro}`,
+      [pct, pct, nombre]
+    )
+    db.run(`INSERT INTO aumentos_precios (criterio, valor, porcentaje, productos) VALUES (?, ?, ?, ?)`,
+      [columna, nombre, pct, cantidad])
+    db.exec('COMMIT')
+    return { ok: true, productos: cantidad }
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+}
+
+function listarAumentos(limite = 50) {
+  return getDB().all(`SELECT * FROM aumentos_precios ORDER BY id DESC LIMIT ?`, [limite])
+}
+
 module.exports = {
+  aumentarCostos,
+  listarAumentos,
   buscarProductos,
   buscarPorCategoria,
   listarPrecios,

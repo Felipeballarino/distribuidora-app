@@ -8,6 +8,10 @@
 //              Los kg se pueden corregir con el peso real (pesan antes de imprimir).
 //   'suelto' → se cobra por kg, sin peso promedio (fraccionado). Solo se cargan kg.
 // No se calcula IVA: el total es la suma de los subtotales.
+//
+// STOCK: se cuenta como se guarda en el galpón, no como se cobra.
+//   'unidad' y 'piezas' → en unidades/piezas (una barra es 1, pese lo que pese)
+//   'suelto'            → en kg (el fraccionado no tiene piezas)
 
 export const redondear = (n, decimales = 2) => {
   const f = 10 ** decimales
@@ -40,6 +44,16 @@ export function parsearNumero(texto) {
   return isNaN(n) ? null : n
 }
 
+// Unidad en que se cuenta el stock de un producto o ítem: 'kg' (solo suelto) | 'u'
+export const unidadStock = (productoOItem) => {
+  const tipo = productoOItem?.tipo ?? tipoCarga(productoOItem)
+  return tipo === 'suelto' ? 'kg' : 'u'
+}
+
+// Cantidad que el ítem descuenta del stock: piezas/unidades, o kg si es suelto.
+export const cantidadStock = (item) =>
+  unidadStock(item) === 'kg' ? Number(item?.peso_kg) || 0 : Number(item?.unidades) || 0
+
 // Cantidad sobre la que se calcula el precio: kg o unidades.
 export const cantidadCobrada = (item) =>
   item?.unidad_medida === 'kg' ? Number(item.peso_kg) || 0 : Number(item?.unidades) || 0
@@ -53,8 +67,19 @@ export const subtotalItem = (item) => redondear(precioDeItem(item) * cantidadCob
 export const totalPedido = (items = []) =>
   redondear(items.reduce((acc, i) => acc + subtotalItem(i), 0))
 
+// Precio puesto a mano (pisa el margen). null/0/vacío = se usa el margen.
+export const precioManualValido = (valor) => {
+  const n = Number(valor)
+  return n > 0 ? redondear(n) : null
+}
+
+// Disponible para vender = stock físico - reservado por precargas.
+// `reservaPropia`: lo reservado por la precarga que se está editando (cuenta como disponible).
+export const disponibleDe = (producto, reservaPropia = 0) =>
+  redondear((Number(producto?.stock) || 0) - (Number(producto?.reservado) || 0) + (Number(reservaPropia) || 0), 3)
+
 // Arma un ítem de pedido a partir del producto y lo que cargó el operador.
-export function crearItem(producto, { unidades, peso_kg, kg_editado = false, markup_pct = 0 }) {
+export function crearItem(producto, { unidades, peso_kg, kg_editado = false, markup_pct = 0, precio_manual = null }, reservaPropia = 0) {
   const tipo = tipoCarga(producto)
   const costo = costoDe(producto)
   const u = tipo === 'suelto' ? Number(unidades) || 0 : Math.max(0, Math.round(Number(unidades) || 0))
@@ -71,26 +96,40 @@ export function crearItem(producto, { unidades, peso_kg, kg_editado = false, mar
     tipo,
     precio_costo: costo,
     markup_pct: Number(markup_pct) || 0,
+    precio_manual: precioManualValido(precio_manual),
     precio_venta: precioVenta(costo, markup_pct),
     unidades: u,
     peso_kg: kg,
     kg_editado: tipo === 'piezas' && !!kg_editado,
-    // stock disponible al momento de cargar (en la unidad en que se cobra)
-    stock: Number(producto.stock) || 0,
+    // disponible al momento de cargar (en la unidad en que se cobra)
+    stock: disponibleDe(producto, reservaPropia),
   })
 }
 
 // Recalcula los campos derivados (cantidad cobrada y subtotal).
+// El precio puesto a mano tiene prioridad sobre el margen.
 export function normalizarItem(item) {
-  const conPrecio = { ...item, precio_venta: precioVenta(item.precio_costo, item.markup_pct) }
+  const manual = precioManualValido(item.precio_manual)
+  const conPrecio = {
+    ...item,
+    precio_manual: manual,
+    precio_venta: manual ?? precioVenta(item.precio_costo, item.markup_pct),
+  }
   const cantidad = cantidadCobrada(conPrecio)
-  return { ...conPrecio, cantidad, subtotal: redondear(conPrecio.precio_venta * cantidad) }
+  return {
+    ...conPrecio,
+    cantidad,
+    // lo que se descuenta del stock (piezas/unidades, o kg si es suelto)
+    cantidad_stock: cantidadStock(conPrecio),
+    subtotal: redondear(conPrecio.precio_venta * cantidad),
+  }
 }
 
 // Aplica cambios del operador a un ítem ya cargado.
 //   { unidades }  → en 'piezas' recalcula kg, salvo que ya hayan cargado el peso real
 //   { peso_kg }   → marca el peso como real (deja de recalcularse)
 //   { markup_pct }
+//   { precio_manual } → número para fijar el precio, null para volver al margen
 export function actualizarItem(item, cambios) {
   const nuevo = { ...item, ...cambios }
   if ('unidades' in cambios) {
@@ -112,20 +151,26 @@ export const itemValido = (item) => cantidadCobrada(item) > 0
 // Stock disponible del producto. Sin dato = 0 (no se puede vender).
 export const stockDisponible = (productoOItem) => Number(productoOItem?.stock) || 0
 
-// true si lo cargado supera el stock: NO se puede agregar ni confirmar.
-export const superaStock = (item) => cantidadCobrada(item) > stockDisponible(item) + 0.0005
+// true si lo cargado supera lo disponible. Solo impide vender si está activado el bloqueo.
+export const superaStock = (item) => cantidadStock(item) > stockDisponible(item) + 0.0005
 
-// Precio > 0. Un producto con costo 0 no se puede vender (el precio no se edita a mano).
+// Precio > 0. Un producto con costo 0 se puede vender solo si le ponen el precio a mano.
 export const tienePrecio = (item) => precioDeItem(item) > 0
 
-// Se puede agregar al pedido: tiene precio, cantidad y hay stock.
-export const puedeAgregarse = (item) => tienePrecio(item) && itemValido(item) && !superaStock(item)
+// Se puede agregar al pedido: tiene precio y cantidad. Si el bloqueo de stock está activado, además tiene que alcanzar.
+export const puedeAgregarse = (item, { bloquearSinStock = false } = {}) =>
+  tienePrecio(item) && itemValido(item) && !(bloquearSinStock && superaStock(item))
 
-// Texto del stock con su unidad ("53,7 kg" / "24 u")
-export const textoStock = (productoOItem) =>
-  productoOItem?.unidad_medida === 'kg'
-    ? formatearKg(stockDisponible(productoOItem))
-    : `${stockDisponible(productoOItem).toLocaleString('es-AR')} u`
+// Texto del stock con su unidad ("12 pzas" / "24 u" / "5,3 kg")
+export const textoStock = (productoOItem) => textoCantidadStock(stockDisponible(productoOItem), productoOItem)
+
+// `productoOItem` define la unidad: kg (suelto), pzas (por kg en piezas) o u (por unidad)
+export function textoCantidadStock(cantidad, productoOItem) {
+  if (unidadStock(productoOItem) === 'kg') return formatearKg(cantidad)
+  const n = (Number(cantidad) || 0).toLocaleString('es-AR', { maximumFractionDigits: 3 })
+  const tipo = productoOItem?.tipo ?? tipoCarga(productoOItem)
+  return tipo === 'piezas' ? `${n} ${Math.abs(Number(cantidad)) === 1 ? 'pza' : 'pzas'}` : `${n} u`
+}
 
 const fmtKg = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 3 })
 export const formatearKg = (kg) => `${fmtKg.format(Number(kg) || 0)} kg`

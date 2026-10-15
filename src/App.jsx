@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ShoppingCart, Tag, Users, FileText, Settings, Warehouse } from 'lucide-react'
 import usePedidoStore from './store/pedidoStore'
+import { getEmpresa } from './lib/empresa'
 import BuscadorCliente from './components/BuscadorCliente'
 import SelectorProducto from './components/SelectorProducto'
-import ResumenPedido from './components/ResumenPedido'
 import ComprobanteEmitido from './components/ComprobanteEmitido'
 import ListaPrecios from './components/ListaPrecios'
 import ListaClientes from './components/ListaClientes'
@@ -12,176 +12,83 @@ import ListaVentas from './components/ListaVentas'
 import Configuracion from './components/Configuracion'
 import ControlStock from './components/ControlStock'
 
-const PASOS = ['cliente', 'productos', 'resumen', 'emitido']
+const SECCIONES = [
+  { id: 'pedido', label: 'Pedidos', icon: ShoppingCart },
+  { id: 'ventas', label: 'Historial', icon: FileText },
+  { id: 'precios', label: 'Precios', icon: Tag },
+  { id: 'stock', label: 'Stock', icon: Warehouse },
+  { id: 'clientes', label: 'Clientes', icon: Users },
+  { id: 'config', label: 'Configuración', icon: Settings },
+]
 
-const variantes = {
-  entrar: (direccion) => ({
-    x: direccion > 0 ? '100%' : '-100%',
-    opacity: 0,
-  }),
-  centro: { x: 0, opacity: 1 },
-  salir: (direccion) => ({
-    x: direccion < 0 ? '100%' : '-100%',
-    opacity: 0,
-  }),
+const PASOS_PEDIDO = {
+  cliente: BuscadorCliente,
+  productos: SelectorProducto,
+  emitido: ComprobanteEmitido,
 }
 
-const variantesFade = {
-  entrar: { opacity: 0, y: 8 },
-  centro: { opacity: 1, y: 0 },
-  salir: { opacity: 0, y: -8 },
+const OTRAS_SECCIONES = {
+  precios: ListaPrecios,
+  stock: ControlStock,
+  clientes: ListaClientes,
+  ventas: ListaVentas,
+  config: Configuracion,
+}
+
+const fade = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.15 },
+}
+
+function Menu({ seccion, onCambiar }) {
+  const nombre = getEmpresa().nombre || 'Distribuidora'
+  return (
+    <aside className="w-16 xl:w-[200px] shrink-0 bg-white border-r border-borde flex flex-col">
+      <div className="px-5 pt-5 pb-6 hidden xl:block">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-texto-suave">Pedidos</p>
+        <p className="text-lg font-extrabold text-texto leading-tight truncate" title={nombre}>{nombre}</p>
+      </div>
+      <nav className="flex-1 px-3 pt-4 xl:pt-0 space-y-1">
+        {SECCIONES.map(({ id, label, icon: Icon }) => {
+          const activa = seccion === id
+          return (
+            <button
+              key={id}
+              onClick={() => onCambiar(id)}
+              title={label}
+              className={`w-full flex items-center justify-center xl:justify-start gap-3 px-3 h-11 rounded-lg text-[15px] font-semibold transition-colors
+                ${activa ? 'bg-primario-suave text-primario' : 'text-texto-suave hover:bg-fondo hover:text-texto'}`}
+            >
+              <Icon className="w-[18px] h-[18px] shrink-0" strokeWidth={activa ? 2.4 : 2} />
+              <span className="hidden xl:inline">{label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    </aside>
+  )
 }
 
 export default function App() {
   const [seccion, setSeccion] = useState('pedido')
   const paso = usePedidoStore((s) => s.paso)
-  const direccion = usePedidoStore((s) => s.direccion)
+  const cargarConfig = usePedidoStore((s) => s.cargarConfig)
 
-  const componentes = {
-    cliente: <BuscadorCliente />,
-    productos: <SelectorProducto />,
-    resumen: <ResumenPedido />,
-    emitido: <ComprobanteEmitido />,
-  }
+  useEffect(() => { cargarConfig() }, [cargarConfig])
 
-  const navItems = [
-    { id: 'pedido', label: 'Nuevo Pedido', icon: ShoppingCart },
-    { id: 'precios', label: 'Lista de Precios', icon: Tag },
-    { id: 'stock', label: 'Stock', icon: Warehouse },
-    { id: 'clientes', label: 'Clientes', icon: Users },
-    { id: 'ventas', label: 'Ventas', icon: FileText },
-    { id: 'config', label: 'Configuración', icon: Settings },
-  ]
-
-  const mostrarNavSuperior = paso !== 'emitido' || seccion !== 'pedido'
+  const Pantalla = seccion === 'pedido' ? PASOS_PEDIDO[paso] : OTRAS_SECCIONES[seccion]
+  const clave = seccion === 'pedido' ? `pedido-${paso}` : seccion
 
   return (
-    <div className="h-screen overflow-hidden bg-fondo flex flex-col">
-      {/* Header siempre visible */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 shadow-sm flex-shrink-0">
-        <span className="text-primario font-extrabold text-xl tracking-tight">Distribuidora</span>
-
-        {/* Navegación principal */}
-        <nav className="flex gap-1 ml-2">
-          {navItems.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setSeccion(id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-                seccion === id
-                  ? 'bg-primario text-white'
-                  : 'text-texto-suave hover:bg-gray-100'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        {/* Indicador de pasos (solo en sección pedido y no en emitido) */}
-        {seccion === 'pedido' && paso !== 'emitido' && (
-          <div className="flex gap-2 ml-auto">
-            {['cliente', 'productos', 'resumen'].map((p, i) => (
-              <div
-                key={p}
-                className={`flex items-center gap-1 text-sm font-semibold px-3 py-1 rounded-full transition-colors ${
-                  PASOS.indexOf(paso) >= i
-                    ? 'bg-primario/10 text-primario border border-primario/30'
-                    : 'bg-gray-100 text-texto-suave'
-                }`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
-                  PASOS.indexOf(paso) >= i ? 'bg-primario text-white' : 'bg-gray-300 text-white'
-                }`}>{i + 1}</span>
-                <span className="hidden sm:inline">
-                  {p === 'cliente' ? 'Cliente' : p === 'productos' ? 'Productos' : 'Resumen'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </header>
-
-      {/* Contenido principal */}
-      <main className="flex-1 overflow-hidden relative">
+    <div className="h-screen overflow-hidden bg-fondo flex">
+      <Menu seccion={seccion} onCambiar={setSeccion} />
+      <main className="flex-1 min-w-0 relative">
         <AnimatePresence initial={false} mode="wait">
-          {seccion === 'pedido' ? (
-            <AnimatePresence initial={false} custom={direccion} mode="wait" key="pedido">
-              <motion.div
-                key={paso}
-                custom={direccion}
-                variants={variantes}
-                initial="entrar"
-                animate="centro"
-                exit="salir"
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="absolute inset-0 overflow-y-auto"
-              >
-                {componentes[paso]}
-              </motion.div>
-            </AnimatePresence>
-          ) : seccion === 'precios' ? (
-            <motion.div
-              key="precios"
-              variants={variantesFade}
-              initial="entrar"
-              animate="centro"
-              exit="salir"
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <ListaPrecios />
-            </motion.div>
-          ) : seccion === 'stock' ? (
-            <motion.div
-              key="stock"
-              variants={variantesFade}
-              initial="entrar"
-              animate="centro"
-              exit="salir"
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <ControlStock />
-            </motion.div>
-          ) : seccion === 'clientes' ? (
-            <motion.div
-              key="clientes"
-              variants={variantesFade}
-              initial="entrar"
-              animate="centro"
-              exit="salir"
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <ListaClientes />
-            </motion.div>
-          ) : seccion === 'ventas' ? (
-            <motion.div
-              key="ventas"
-              variants={variantesFade}
-              initial="entrar"
-              animate="centro"
-              exit="salir"
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <ListaVentas />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="config"
-              variants={variantesFade}
-              initial="entrar"
-              animate="centro"
-              exit="salir"
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 overflow-y-auto"
-            >
-              <Configuracion />
-            </motion.div>
-          )}
+          <motion.div key={clave} {...fade} className="absolute inset-0 overflow-y-auto">
+            <Pantalla />
+          </motion.div>
         </AnimatePresence>
       </main>
     </div>

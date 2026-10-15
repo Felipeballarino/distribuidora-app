@@ -6,6 +6,8 @@ const clientesDB = require('./db/clientes')
 const productosDB = require('./db/productos')
 const comprobantesDB = require('./db/comprobantes')
 const stockDB = require('./db/stock')
+const precargasDB = require('./db/precargas')
+const configDB = require('./db/config')
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
 
@@ -35,8 +37,10 @@ function crearVentana() {
 }
 
 app.whenReady().then(() => {
-  inicializarDB()
+  // El backup va ANTES de abrir la base: así, si una actualización cambia datos
+  // (ej: el stock de kg a piezas), queda una copia de cómo estaba antes.
   iniciarBackupsAutomaticos()
+  inicializarDB()
   crearVentana()
 
   app.on('activate', () => {
@@ -134,4 +138,42 @@ ipcMain.handle('stock:ajustar', async (_event, cod, contado, nota) => {
 
 ipcMain.handle('stock:movimientos', async (_event, cod) => {
   return stockDB.listarMovimientos(cod)
+})
+
+// ─── Precargas (pedidos armados el día anterior) ───────────────────────────────
+
+ipcMain.handle('precargas:guardar', async (_event, datos) => {
+  return precargasDB.guardarPrecarga(datos)
+})
+
+ipcMain.handle('precargas:listar', async () => {
+  return precargasDB.listarPrecargas()
+})
+
+ipcMain.handle('precargas:obtener', async (_event, id) => {
+  return precargasDB.obtenerPrecarga(id)
+})
+
+ipcMain.handle('precargas:descartar', async (_event, id) => {
+  return precargasDB.descartarPrecarga(id)
+})
+
+// ─── Aumento de costos ────────────────────────────────────────────────────────
+
+ipcMain.handle('precios:aumentar', async (_event, datos) => {
+  return productosDB.aumentarCostos(datos)
+})
+
+ipcMain.handle('precios:aumentos', async () => {
+  return productosDB.listarAumentos()
+})
+
+// ─── Configuración ────────────────────────────────────────────────────────────
+
+ipcMain.handle('config:leer', async () => {
+  return configDB.leerConfig()
+})
+
+ipcMain.handle('config:guardar', async (_event, cambios) => {
+  return configDB.guardarConfig(cambios)
 })

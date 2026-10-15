@@ -1,17 +1,18 @@
 const { getDB } = require('./connection')
+const { palabrasDe, coincide } = require('./busqueda')
 
 function buscarClientes(termino) {
-  const db = getDB()
-  const busqueda = `%${termino}%`
-  return db.all(
+  const filas = getDB().all(
     `SELECT cod_cliente, razon_social, domicilio, localidad, telefono, email, cuit
      FROM clientes
      WHERE activo = 1
-       AND (razon_social LIKE ? OR cod_cliente LIKE ?)
-     ORDER BY razon_social
-     LIMIT 30`,
-    [busqueda, busqueda]
+     ORDER BY razon_social`
   )
+  const palabras = palabrasDe(termino)
+  const encontrados = palabras.length
+    ? filas.filter((c) => coincide(c, ['razon_social', 'cod_cliente', 'domicilio', 'localidad'], palabras))
+    : filas
+  return encontrados.slice(0, 60)
 }
 
 function listarClientes() {

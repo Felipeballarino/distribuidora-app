@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('api', {
     actualizar: (id, datos) => ipcRenderer.invoke('precios:actualizar', id, datos),
     eliminar: (id) => ipcRenderer.invoke('precios:eliminar', id),
     importar: (filas) => ipcRenderer.invoke('precios:importar', filas),
+    aumentar: (datos) => ipcRenderer.invoke('precios:aumentar', datos),
+    aumentos: () => ipcRenderer.invoke('precios:aumentos'),
   },
   comprobantes: {
     emitir: (datos) => ipcRenderer.invoke('comprobantes:emitir', datos),
@@ -28,5 +30,15 @@ contextBridge.exposeInMainWorld('api', {
     ingresar: (cod, cantidad, nota) => ipcRenderer.invoke('stock:ingresar', cod, cantidad, nota),
     ajustar: (cod, contado, nota) => ipcRenderer.invoke('stock:ajustar', cod, contado, nota),
     movimientos: (cod) => ipcRenderer.invoke('stock:movimientos', cod),
+  },
+  precargas: {
+    guardar: (datos) => ipcRenderer.invoke('precargas:guardar', datos),
+    listar: () => ipcRenderer.invoke('precargas:listar'),
+    obtener: (id) => ipcRenderer.invoke('precargas:obtener', id),
+    descartar: (id) => ipcRenderer.invoke('precargas:descartar', id),
+  },
+  config: {
+    leer: () => ipcRenderer.invoke('config:leer'),
+    guardar: (cambios) => ipcRenderer.invoke('config:guardar', cambios),
   },
 })

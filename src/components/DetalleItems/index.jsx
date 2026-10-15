@@ -20,12 +20,12 @@ export default function DetalleItems({ items, compacta = false }) {
           <tr key={`${item.cod_articulo}-${i}`} className={`border-t border-gray-50 ${i % 2 ? 'bg-gray-50/50' : ''}`}>
             <td className={`${celda} font-semibold text-texto text-sm`}>{item.denominacion}</td>
             <td className={`${celda} text-center font-mono text-sm`}>{textoCantidad(item)}</td>
-            <td className={`${celda} text-center font-mono text-sm`}>{textoKg(item)}</td>
-            <td className={`${celda} text-right font-mono text-sm`}>
+            <td className={`${celda} text-center font-mono text-sm whitespace-nowrap`}>{textoKg(item)}</td>
+            <td className={`${celda} text-right font-mono text-sm whitespace-nowrap`}>
               {formatearPrecio(precioDeItem(item))}
               <span className="text-xs text-texto-suave">{sufijoUnidad(item)}</span>
             </td>
-            <td className={`${celda} text-right font-mono font-bold text-sm text-primario`}>
+            <td className={`${celda} text-right font-mono font-bold text-sm text-texto whitespace-nowrap`}>
               {formatearPrecio(subtotalItem(item))}
             </td>
           </tr>

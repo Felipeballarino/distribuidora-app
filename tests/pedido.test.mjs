@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   tipoCarga, precioVenta, crearItem, actualizarItem, totalPedido, parsearNumero,
-  cantidadCobrada, superaStock, precioDeItem, subtotalItem, puedeAgregarse,
+  cantidadCobrada, superaStock, precioDeItem, subtotalItem, puedeAgregarse, disponibleDe, textoStock,
 } from '../src/lib/pedido.js'
 
 const barra = { cod_articulo: '2', denominacion: 'Queso barra', unidad_medida: 'kg', peso_promedio_kg: 4.5, precio_neto: 4000, stock: 50 }
@@ -68,15 +68,35 @@ test('total del pedido sin IVA', () => {
   assert.equal(totalPedido(items), 235200)
 })
 
-test('stock: sin dato es 0 y no se puede agregar', () => {
+const BLOQUEO = { bloquearSinStock: true }
+
+test('stock: sin dato es 0; sin bloqueo se puede agregar igual', () => {
   const i = crearItem(manteca, { unidades: 1 })
   assert.equal(i.stock, 0)
-  assert.equal(puedeAgregarse(i), false)
+  assert.equal(superaStock(i), true)
+  assert.equal(puedeAgregarse(i), true)
+  assert.equal(puedeAgregarse(i, BLOQUEO), false)
 })
 
-test('stock: no se puede pedir más de lo que hay (en kg para productos por kg)', () => {
-  assert.equal(puedeAgregarse(crearItem(barra, { unidades: 11 })), true)   // 49,5 kg de 50
-  assert.equal(puedeAgregarse(crearItem(barra, { unidades: 12 })), false)  // 54 kg de 50
+test('stock con bloqueo: piezas se cuentan por pieza aunque se cobren por kg', () => {
+  const barra11 = { ...barra, stock: 11 }
+  assert.equal(puedeAgregarse(crearItem(barra11, { unidades: 11 }), BLOQUEO), true)   // 11 piezas de 11
+  assert.equal(puedeAgregarse(crearItem(barra11, { unidades: 12 }), BLOQUEO), false)  // 12 de 11
+  assert.equal(puedeAgregarse(crearItem(barra11, { unidades: 12 })), true)
+  // el peso real no cambia el stock: 11 barras que pesaron 52 kg siguen siendo 11
+  const pesada = crearItem(barra11, { unidades: 11, peso_kg: 52, kg_editado: true })
+  assert.equal(pesada.cantidad, 52)
+  assert.equal(pesada.cantidad_stock, 11)
+  assert.equal(superaStock(pesada), false)
+})
+
+test('fraccionado: el stock va en kg', () => {
+  const i = crearItem({ ...fraccionado, stock: 5 }, { peso_kg: 2.35 })
+  assert.equal(i.cantidad_stock, 2.35)
+  assert.equal(superaStock(crearItem({ ...fraccionado, stock: 2 }, { peso_kg: 2.35 })), true)
+  assert.equal(textoStock({ ...fraccionado, stock: 5 }), '5,0 kg')
+  assert.equal(textoStock({ ...barra, stock: 12 }), '12 pzas')
+  assert.equal(textoStock({ ...manteca, stock: 24 }), '24 u')
   assert.equal(superaStock(crearItem(barra, { unidades: 10, peso_kg: 50, kg_editado: true })), false)
 })
 
@@ -97,4 +117,28 @@ test('precio 0: no se puede agregar', async () => {
   const { puedeAgregarse: puede } = await import('../src/lib/pedido.js')
   const gratis = { cod_articulo: 'X', denominacion: 'Sin costo', unidad_medida: 'unid', precio_neto: 0, stock: 10 }
   assert.equal(puede(crearItem(gratis, { unidades: 1, markup_pct: 25 })), false)
+})
+
+test('disponible = stock - reservado (+ la reserva propia al editar una precarga)', () => {
+  const reservada = { ...barra, stock: 50, reservado: 20 }
+  assert.equal(disponibleDe(reservada), 30)
+  assert.equal(crearItem(reservada, { unidades: 1 }).stock, 30)
+  assert.equal(crearItem(reservada, { unidades: 1 }, 20).stock, 50)
+})
+
+test('precio a mano: pisa el margen y se puede volver al margen', () => {
+  const i = crearItem(barra, { unidades: 10, markup_pct: 25, precio_manual: 4800 })
+  assert.equal(i.precio_venta, 4800)
+  assert.equal(i.subtotal, 216000)
+  // cambiar el margen no pisa el precio a mano
+  assert.equal(actualizarItem(i, { markup_pct: 30 }).precio_venta, 4800)
+  const vuelto = actualizarItem(i, { precio_manual: null })
+  assert.equal(vuelto.precio_venta, 5000)
+  assert.equal(vuelto.precio_manual, null)
+  assert.equal(actualizarItem(i, { precio_manual: '' }).precio_venta, 5000)
+})
+
+test('precio a mano permite vender un producto sin costo cargado', () => {
+  const gratis = { cod_articulo: 'X', denominacion: 'Sin costo', unidad_medida: 'unid', precio_neto: 0, stock: 10 }
+  assert.equal(puedeAgregarse(crearItem(gratis, { unidades: 1, precio_manual: 500 })), true)
 })

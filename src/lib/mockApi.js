@@ -14,12 +14,12 @@ let clientes = [
 
 // precio_neto = COSTO. unidad_medida = cómo se cobra. peso_promedio_kg = peso por pieza (opcional)
 let productos = [
-  { id: 1, cod_articulo: '2', denominacion: 'Queso Barra Don Bosco', marca: 'Don Bosco', unidad_medida: 'kg', peso_promedio_kg: 4.5, precio_neto: 4000, stock: 120, categoria: 'Quesos' },
-  { id: 2, cod_articulo: '144', denominacion: 'Queso Barra La Estancia', marca: 'La Estancia', unidad_medida: 'kg', peso_promedio_kg: 4.2, precio_neto: 3800, stock: 30, categoria: 'Quesos' },
-  { id: 3, cod_articulo: '1', denominacion: 'Queso Cremoso Horma', marca: 'La Quesera', unidad_medida: 'kg', peso_promedio_kg: 3.8, precio_neto: 3500, stock: 40, categoria: 'Quesos' },
+  { id: 1, cod_articulo: '2', denominacion: 'Queso Barra Don Bosco', marca: 'Don Bosco', unidad_medida: 'kg', peso_promedio_kg: 4.5, precio_neto: 4000, stock: 26, categoria: 'Quesos' },
+  { id: 2, cod_articulo: '144', denominacion: 'Queso Barra La Estancia', marca: 'La Estancia', unidad_medida: 'kg', peso_promedio_kg: 4.2, precio_neto: 3800, stock: 7, categoria: 'Quesos' },
+  { id: 3, cod_articulo: '1', denominacion: 'Queso Cremoso Horma', marca: 'La Quesera', unidad_medida: 'kg', peso_promedio_kg: 3.8, precio_neto: 3500, stock: 10, categoria: 'Quesos' },
   { id: 4, cod_articulo: 'Q9', denominacion: 'Queso Cremoso fraccionado', marca: '', unidad_medida: 'kg', peso_promedio_kg: null, precio_neto: 3700, stock: 12.5, categoria: 'Quesos' },
   { id: 5, cod_articulo: '41', denominacion: 'Cheddar líquido x 4 kg', marca: 'La Quesera', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 18000, stock: 10, categoria: 'Quesos' },
-  { id: 6, cod_articulo: 'F001', denominacion: 'Jamón Cocido pieza', marca: 'Paladini', unidad_medida: 'kg', peso_promedio_kg: 5, precio_neto: 6200, stock: 25, categoria: 'Fiambres' },
+  { id: 6, cod_articulo: 'F001', denominacion: 'Jamón Cocido pieza', marca: 'Paladini', unidad_medida: 'kg', peso_promedio_kg: 5, precio_neto: 6200, stock: 5, categoria: 'Fiambres' },
   { id: 7, cod_articulo: 'F002', denominacion: 'Salame Milán', marca: '', unidad_medida: 'kg', peso_promedio_kg: 1.2, precio_neto: 7800, stock: 0, categoria: 'Fiambres' },
   { id: 8, cod_articulo: 'M001', denominacion: 'Manteca x 200 g', marca: 'La Serenísima', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 850, stock: 60, categoria: 'Manteca' },
   { id: 9, cod_articulo: 'Y001', denominacion: 'Yogur Natural x 190 g', marca: '', unidad_medida: 'unid', peso_promedio_kg: null, precio_neto: 320, stock: 100, categoria: 'Otros' },
@@ -33,6 +33,27 @@ let contadorComprobante = 1
 let historialComprobantes = []
 let movimientos = []
 let nextMovId = 1
+let config = { bloquear_sin_stock: false }
+let precargas = []
+let nextPrecargaId = 1
+let aumentos = []
+
+// Reservado por precargas (opcionalmente sin contar una)
+// Lo que un ítem descuenta del stock (piezas/unidades, o kg si es suelto)
+const cantStock = (i) => Number(i.cantidad_stock ?? i.cantidad) || 0
+const reservado = (cod, excluir = null) =>
+  precargas.filter((p) => p.id !== excluir)
+    .flatMap((p) => p.items)
+    .filter((i) => i.cod_articulo === cod)
+    .reduce((acc, i) => acc + cantStock(i), 0)
+const conReservado = (p) => ({ ...p, reservado: reservado(p.cod_articulo) })
+const disponible = (cod, excluir = null) => {
+  const p = productos.find((x) => x.cod_articulo === cod)
+  return r3((Number(p?.stock) || 0) - reservado(cod, excluir))
+}
+const faltantesDe = (items, excluir = null) => items
+  .filter((i) => cantStock(i) > disponible(i.cod_articulo, excluir) + 0.0005)
+  .map((i) => ({ cod_articulo: i.cod_articulo, denominacion: i.denominacion, pedido: cantStock(i), disponible: disponible(i.cod_articulo, excluir) }))
 
 const r3 = (n) => Math.round(n * 1000) / 1000
 function mover(cod, tipo, cantidad, referencia = null, nota = null) {
@@ -41,7 +62,7 @@ function mover(cod, tipo, cantidad, referencia = null, nota = null) {
   p.stock = r3((Number(p.stock) || 0) + cantidad)
   movimientos.unshift({
     id: nextMovId++, fecha: new Date().toISOString(), cod_articulo: cod, tipo, cantidad: r3(cantidad),
-    stock_resultante: p.stock, referencia, nota, denominacion: p.denominacion, unidad_medida: p.unidad_medida,
+    stock_resultante: p.stock, referencia, nota, denominacion: p.denominacion, unidad_medida: p.unidad_medida, peso_promedio_kg: p.peso_promedio_kg,
   })
 }
 
@@ -51,10 +72,10 @@ export const mockApi = {
   clientes: {
     buscar: async (termino) => {
       await delay()
-      if (!termino) return clientes.map(({ id: _id, ...c }) => c)
-      const t = termino.toLowerCase()
+      const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const palabras = norm(termino).split(/\s+/).filter(Boolean)
       return clientes
-        .filter((c) => c.razon_social.toLowerCase().includes(t) || c.cod_cliente.includes(t))
+        .filter((c) => palabras.every((w) => norm(`${c.razon_social} ${c.cod_cliente} ${c.domicilio} ${c.localidad}`).includes(w)))
         .map(({ id: _id, ...c }) => c)
     },
     listar: async () => {
@@ -111,17 +132,30 @@ export const mockApi = {
       return productos.filter((p) => {
         const texto = norm(`${p.denominacion} ${p.marca} ${p.categoria} ${p.cod_articulo}`)
         return palabras.every((w) => texto.includes(w))
-      })
+      }).map(conReservado)
     },
     porCategoria: async (categoria) => {
       await delay(80)
-      if (!categoria || categoria === 'Todos') return [...productos]
-      return productos.filter((p) => p.categoria === categoria)
+      if (!categoria || categoria === 'Todos') return productos.map(conReservado)
+      return productos.filter((p) => p.categoria === categoria).map(conReservado)
     },
     listar: async () => {
       await delay()
-      return [...productos]
+      return productos.map(conReservado)
     },
+    aumentar: async ({ criterio, valor, porcentaje }) => {
+      await delay(200)
+      const pct = Number(porcentaje)
+      if (!pct) return { ok: false, error: 'Ingresá el porcentaje' }
+      const col = criterio === 'categoria' ? 'categoria' : 'marca'
+      const norm = (x) => String(x || '').trim().toLowerCase()
+      const afectados = productos.filter((p) => norm(p[col]) === norm(valor))
+      if (!afectados.length) return { ok: false, error: `No hay productos de ${valor}` }
+      afectados.forEach((p) => { p.precio_neto = Math.round(p.precio_neto * (1 + pct / 100) * 100) / 100 })
+      aumentos.unshift({ id: aumentos.length + 1, fecha: new Date().toISOString(), criterio: col, valor, porcentaje: pct, productos: afectados.length })
+      return { ok: true, productos: afectados.length }
+    },
+    aumentos: async () => [...aumentos],
     crear: async (datos) => {
       await delay(200)
       if (productos.some((p) => p.cod_articulo === datos.cod_articulo)) {
@@ -177,17 +211,17 @@ export const mockApi = {
   },
 
   comprobantes: {
-    emitir: async ({ cliente, items, totales }) => {
+    emitir: async ({ cliente, items, totales, precarga_id = null }) => {
       await delay(300)
       const sinPrecio = items.filter((i) => !(i.precio_venta > 0))
       if (sinPrecio.length) return { ok: false, error: `Hay productos sin precio: ${sinPrecio.map((i) => i.denominacion).join(', ')}` }
-      const faltantes = items
-        .map((i) => ({ i, p: productos.find((p) => p.cod_articulo === i.cod_articulo) }))
-        .filter(({ i, p }) => i.cantidad > (Number(p?.stock) || 0) + 0.0005)
-        .map(({ i, p }) => ({ cod_articulo: i.cod_articulo, denominacion: i.denominacion, pedido: i.cantidad, disponible: Number(p?.stock) || 0 }))
-      if (faltantes.length) return { ok: false, error: 'STOCK_INSUFICIENTE', faltantes }
+      if (config.bloquear_sin_stock) {
+        const faltantes = faltantesDe(items, precarga_id)
+        if (faltantes.length) return { ok: false, error: 'STOCK_INSUFICIENTE', faltantes }
+      }
+      if (precarga_id) precargas = precargas.filter((p) => p.id !== precarga_id)
       const numero = String(contadorComprobante++).padStart(8, '0')
-      items.forEach((item) => mover(item.cod_articulo, 'venta', -item.cantidad, numero, cliente.razon_social))
+      items.forEach((item) => mover(item.cod_articulo, 'venta', -cantStock(item), numero, cliente.razon_social))
       const comprobante = {
         id: contadorComprobante,
         numero,
@@ -215,7 +249,7 @@ export const mockApi = {
       const c = historialComprobantes.find((x) => x.id === id)
       if (!c) return { ok: false, error: 'No existe el pedido' }
       if (c.anulado) return { ok: false, error: 'El pedido ya estaba anulado' }
-      c.items.forEach((i) => mover(i.cod_articulo, 'anulacion', i.cantidad, c.numero, `Anulación pedido ${c.numero}`))
+      c.items.forEach((i) => mover(i.cod_articulo, 'anulacion', cantStock(i), c.numero, `Anulación pedido ${c.numero}`))
       c.anulado = true
       return { ok: true }
     },
@@ -238,6 +272,53 @@ export const mockApi = {
     movimientos: async (cod) => {
       await delay(100)
       return cod ? movimientos.filter((m) => m.cod_articulo === cod) : movimientos.slice(0, 300)
+    },
+  },
+
+  precargas: {
+    guardar: async ({ id = null, cliente, items, total = 0, margen = 0 }) => {
+      await delay(200)
+      if (config.bloquear_sin_stock) {
+        const faltantes = faltantesDe(items, id)
+        if (faltantes.length) return { ok: false, error: 'STOCK_INSUFICIENTE', faltantes }
+      }
+      const datos = {
+        cod_cliente: cliente.cod_cliente, razon_social: cliente.razon_social, cuit: cliente.cuit || '',
+        domicilio: cliente.domicilio || '', margen, items, total, actualizado: new Date().toISOString(),
+      }
+      if (id) {
+        const p = precargas.find((x) => x.id === id)
+        if (!p) return { ok: false, error: 'La precarga ya no existe' }
+        Object.assign(p, datos)
+        return { ok: true, id }
+      }
+      precargas.push({ id: nextPrecargaId, creado: new Date().toISOString(), ...datos })
+      return { ok: true, id: nextPrecargaId++ }
+    },
+    listar: async () => {
+      await delay(80)
+      return precargas.map((p) => ({ ...p }))
+    },
+    obtener: async (id) => {
+      await delay(80)
+      const p = precargas.find((x) => x.id === id)
+      if (!p) return null
+      const reservas = {}
+      p.items.forEach((i) => { reservas[i.cod_articulo] = (reservas[i.cod_articulo] || 0) + cantStock(i) })
+      return { ...p, reservas, items: p.items.map((i) => ({ ...i, stock: disponible(i.cod_articulo, id) })) }
+    },
+    descartar: async (id) => {
+      await delay(100)
+      precargas = precargas.filter((p) => p.id !== id)
+      return { ok: true }
+    },
+  },
+
+  config: {
+    leer: async () => ({ ...config }),
+    guardar: async (cambios) => {
+      config = { ...config, ...cambios }
+      return { ok: true, config: { ...config } }
     },
   },
 }

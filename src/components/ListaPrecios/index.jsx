@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import * as XLSX from 'xlsx'
-import { Plus, Upload, Download, Pencil, Trash2, X, Search, Package } from 'lucide-react'
+import { Plus, Upload, Download, Pencil, Trash2, X, Search, Package, TrendingUp } from 'lucide-react'
+import ModalAumento from './ModalAumento'
 import { formatearPrecio } from '../../lib/utils'
 import { CATEGORIAS } from '../../lib/categorias'
-import { parsearNumero, formatearKg } from '../../lib/pedido'
+import { parsearNumero, formatearKg, textoCantidadStock } from '../../lib/pedido'
 
 const UNIDADES = [
   { valor: 'unid', texto: 'Por unidad' },
@@ -64,9 +65,9 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]"
       >
-        <div className="flex justify-between items-center px-6 py-5 border-b border-gray-100 flex-shrink-0">
+        <div className="flex justify-between items-center px-6 py-5 border-b border-borde flex-shrink-0">
           <h2 className="text-xl font-extrabold text-texto">
             {producto ? 'Editar Producto' : 'Nuevo Producto'}
           </h2>
@@ -83,7 +84,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
                 value={form.cod_articulo}
                 onChange={(e) => handleChange('cod_articulo', e.target.value)}
                 placeholder="Q001"
-                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.cod_articulo ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.cod_articulo ? 'border-peligro bg-red-50' : 'border-borde'}`}
               />
               {errores.cod_articulo && <p className="text-peligro text-xs mt-1">{errores.cod_articulo}</p>}
             </div>
@@ -92,7 +93,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
               <select
                 value={form.unidad_medida}
                 onChange={(e) => handleChange('unidad_medida', e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
+                className="w-full border border-borde rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
               >
                 {UNIDADES.map((u) => <option key={u.valor} value={u.valor}>{u.texto}</option>)}
               </select>
@@ -105,7 +106,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
               value={form.denominacion}
               onChange={(e) => handleChange('denominacion', e.target.value)}
               placeholder="Queso Cremoso x kg"
-              className={`w-full border rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario ${errores.denominacion ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+              className={`w-full border rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario ${errores.denominacion ? 'border-peligro bg-red-50' : 'border-borde'}`}
             />
             {errores.denominacion && <p className="text-peligro text-xs mt-1">{errores.denominacion}</p>}
           </div>
@@ -116,7 +117,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
               value={form.marca}
               onChange={(e) => handleChange('marca', e.target.value)}
               placeholder="La Serenísima"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
+              className="w-full border border-borde rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
             />
           </div>
 
@@ -128,7 +129,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
                 value={form.peso_promedio_kg ?? ''}
                 onChange={(e) => handleChange('peso_promedio_kg', e.target.value)}
                 placeholder="Ej: 4,5 (vacío si se vende suelto)"
-                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.peso_promedio_kg ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+                className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.peso_promedio_kg ? 'border-peligro bg-red-50' : 'border-borde'}`}
               />
               {errores.peso_promedio_kg
                 ? <p className="text-peligro text-xs mt-1">{errores.peso_promedio_kg}</p>
@@ -138,20 +139,20 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
 
           {producto ? (
             <div className="bg-fondo rounded-xl px-4 py-3 text-sm text-texto-suave">
-              Stock actual: <b className="font-mono text-texto">{Number(producto.stock ?? 0).toLocaleString('es-AR')}{form.unidad_medida === 'kg' ? ' kg' : ' u'}</b>.
+              Stock actual: <b className="font-mono text-texto">{textoCantidadStock(producto.stock, producto)}</b>.
               Para cambiarlo usá la sección <b>Stock</b> (ingresar mercadería o ajustar).
             </div>
           ) : (
             <div>
               <label className="block text-sm font-bold text-texto-suave mb-1">
-                Stock inicial <span className="font-normal">({form.unidad_medida === 'kg' ? 'en kg' : 'en unidades'})</span>
+                Stock inicial <span className="font-normal">({form.unidad_medida !== 'kg' ? 'en unidades' : parsearNumero(form.peso_promedio_kg) > 0 ? 'en piezas' : 'en kg'})</span>
               </label>
               <input
                 inputMode="decimal"
                 value={form.stock ?? ''}
                 onChange={(e) => handleChange('stock', e.target.value)}
                 placeholder="0"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
+                className="w-full border border-borde rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario"
               />
             </div>
           )}
@@ -165,7 +166,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
               value={form.precio_neto}
               onChange={(e) => handleChange('precio_neto', e.target.value)}
               placeholder="4000"
-              className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.precio_neto ? 'border-peligro bg-red-50' : 'border-gray-200'}`}
+              className={`w-full border rounded-xl px-3 py-2.5 text-base font-mono focus:outline-none focus:ring-2 focus:ring-primario ${errores.precio_neto ? 'border-peligro bg-red-50' : 'border-borde'}`}
             />
             {errores.precio_neto && <p className="text-peligro text-xs mt-1">{errores.precio_neto}</p>}
           </div>
@@ -175,7 +176,7 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             <select
               value={form.categoria}
               onChange={(e) => handleChange('categoria', e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
+              className="w-full border border-borde rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primario"
             >
               {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -185,14 +186,14 @@ function ModalProducto({ producto, onGuardar, onCerrar }) {
             <button
               type="button"
               onClick={onCerrar}
-              className="flex-1 py-3 border-2 border-gray-200 rounded-2xl text-base font-bold hover:bg-gray-50 transition-colors"
+              className="flex-1 py-3 border-2 border-borde rounded-xl text-base font-bold hover:bg-fondo transition-colors"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={guardando}
-              className="flex-1 py-3 bg-primario text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              className="flex-1 py-3 bg-primario text-white rounded-xl text-base font-bold hover:bg-primario-oscuro transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
               {guardando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               {guardando ? 'Guardando...' : 'Guardar'}
@@ -219,7 +220,7 @@ function ModalConfirmarEliminar({ producto, onConfirmar, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center"
+        className="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full text-center"
       >
         <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
           <Trash2 className="w-8 h-8 text-peligro" />
@@ -229,14 +230,14 @@ function ModalConfirmarEliminar({ producto, onConfirmar, onCerrar }) {
         <div className="flex gap-3">
           <button
             onClick={onCerrar}
-            className="flex-1 py-3 border-2 border-gray-200 rounded-2xl font-bold hover:bg-gray-50"
+            className="flex-1 py-3 border-2 border-borde rounded-xl font-bold hover:bg-fondo"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirmar}
             disabled={eliminando}
-            className="flex-1 py-3 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 py-3 bg-peligro text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {eliminando && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {eliminando ? 'Eliminando...' : 'Eliminar'}
@@ -256,6 +257,7 @@ export default function ListaPrecios() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [productoEditando, setProductoEditando] = useState(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(null)
+  const [aumentando, setAumentando] = useState(false)
   const importRef = useRef()
 
   const cargar = async () => {
@@ -339,7 +341,7 @@ export default function ListaPrecios() {
   }
 
   return (
-    <div className="h-full flex flex-col p-6 bg-fondo">
+    <div className="h-full flex flex-col px-8 py-6">
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
@@ -356,7 +358,7 @@ export default function ListaPrecios() {
           <button
             onClick={() => importRef.current.click()}
             disabled={importando}
-            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm disabled:opacity-60"
+            className="flex items-center gap-2 px-4 py-3 border-2 border-borde bg-white rounded-xl font-bold hover:bg-fondo transition-colors text-sm disabled:opacity-60"
           >
             {importando
               ? <div className="w-4 h-4 border-2 border-primario border-t-transparent rounded-full animate-spin" />
@@ -364,15 +366,22 @@ export default function ListaPrecios() {
             {importando ? 'Importando...' : 'Importar Excel'}
           </button>
           <button
+            onClick={() => setAumentando(true)}
+            className="flex items-center gap-2 px-4 py-3 border-2 border-borde bg-white rounded-xl font-bold hover:bg-fondo transition-colors text-sm"
+          >
+            <TrendingUp className="w-4 h-4" />
+            Aumentar costos
+          </button>
+          <button
             onClick={handleExportar}
-            className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 bg-white rounded-2xl font-bold hover:bg-gray-50 transition-colors text-sm"
+            className="flex items-center gap-2 px-4 py-3 border-2 border-borde bg-white rounded-xl font-bold hover:bg-fondo transition-colors text-sm"
           >
             <Download className="w-4 h-4" />
             Exportar Excel
           </button>
           <button
             onClick={() => { setProductoEditando(null); setModalAbierto(true) }}
-            className="flex items-center gap-2 px-4 py-3 bg-primario text-white rounded-2xl font-bold hover:bg-blue-700 transition-colors text-sm"
+            className="flex items-center gap-2 px-4 py-3 bg-primario text-white rounded-xl font-bold hover:bg-primario-oscuro transition-colors text-sm"
           >
             <Plus className="w-4 h-4" />
             Nuevo producto
@@ -381,7 +390,7 @@ export default function ListaPrecios() {
       </div>
 
       {mensaje && (
-        <div className="mb-4 flex items-center justify-between bg-green-50 text-secundario font-bold rounded-2xl px-4 py-3">
+        <div className="mb-4 flex items-center justify-between bg-green-50 text-secundario font-bold rounded-xl px-4 py-3">
           <span>✓ {mensaje}</span>
           <button onClick={() => setMensaje(null)} className="p-1"><X className="w-4 h-4" /></button>
         </div>
@@ -394,12 +403,12 @@ export default function ListaPrecios() {
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por nombre, código o categoría..."
-          className="w-full pl-12 pr-4 py-3 text-base rounded-2xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primario"
+          className="w-full pl-12 pr-4 py-3 text-base rounded-xl border border-borde bg-white focus:outline-none focus:ring-2 focus:ring-primario"
         />
       </div>
 
       {/* Tabla */}
-      <div className="flex-1 overflow-auto bg-white rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex-1 overflow-auto bg-white rounded-xl shadow-tarjeta border border-borde">
         {cargando ? (
           <div className="flex items-center justify-center h-48 text-texto-suave text-lg">Cargando...</div>
         ) : filtrados.length === 0 ? (
@@ -411,7 +420,7 @@ export default function ListaPrecios() {
           </div>
         ) : (
           <table className="w-full text-left">
-            <thead className="bg-fondo border-b border-gray-100 sticky top-0 z-10">
+            <thead className="bg-fondo border-b border-borde sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Código</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Denominación</th>
@@ -428,13 +437,13 @@ export default function ListaPrecios() {
               {filtrados.map((p, i) => (
                 <tr
                   key={p.id ?? p.cod_articulo}
-                  className={`border-b border-gray-50 hover:bg-blue-50/40 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/40'}`}
+                  className={`border-b border-borde/60 hover:bg-blue-50/40 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/40'}`}
                 >
                   <td className="px-4 py-3 font-mono text-sm text-texto-suave">{p.cod_articulo}</td>
                   <td className="px-4 py-3 font-semibold text-texto">{p.denominacion}</td>
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.marca || '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold ${p.unidad_medida === 'kg' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-bold whitespace-nowrap ${p.unidad_medida === 'kg' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                       {p.unidad_medida === 'kg' ? 'x kg' : 'x unidad'}
                     </span>
                   </td>
@@ -448,7 +457,7 @@ export default function ListaPrecios() {
                       <span className="text-peligro">Sin costo</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center font-mono text-sm text-texto">{p.stock != null ? Number(p.stock).toLocaleString('es-AR', { maximumFractionDigits: 3 }) : '—'}</td>
+                  <td className="px-4 py-3 text-center font-mono text-sm text-texto whitespace-nowrap">{p.stock != null ? textoCantidadStock(p.stock, p) : '—'}</td>
                   <td className="px-4 py-3 text-sm text-texto-suave">{p.categoria}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 justify-center">
@@ -481,6 +490,16 @@ export default function ListaPrecios() {
             producto={productoEditando}
             onGuardar={handleGuardar}
             onCerrar={() => { setModalAbierto(false); setProductoEditando(null) }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {aumentando && (
+          <ModalAumento
+            productos={precios}
+            onListo={(texto) => { setAumentando(false); setMensaje(texto); cargar() }}
+            onCerrar={() => setAumentando(false)}
           />
         )}
       </AnimatePresence>

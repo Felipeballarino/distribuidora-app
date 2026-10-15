@@ -1,249 +1,154 @@
-import { useState, useMemo } from 'react'
-import { Plus, Minus, Percent, AlertTriangle, Check } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { formatearPrecio } from '../../lib/utils'
+import { useState } from 'react'
+import { Check, RotateCcw } from 'lucide-react'
+import { formatearPrecio, formatearImporte } from '../../lib/utils'
 import {
-  tipoCarga, costoDe, precioVenta, crearItem, kgEstimados, parsearNumero,
-  formatearKg, superaStock, puedeAgregarse, stockDisponible, textoStock,
+  tipoCarga, costoDe, precioVenta, crearItem, kgEstimados, parsearNumero, formatearKg,
+  superaStock, puedeAgregarse, disponibleDe, textoCantidadStock, precioManualValido,
 } from '../../lib/pedido'
+import InputDecimal from '../ui/InputDecimal'
 
-// Texto que se muestra en el input de kg ("45,0")
-const kgATexto = (kg) => (kg ? String(Number(kg)).replace('.', ',') : '')
-
-function BotonPaso({ onClick, disabled, children, label }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center
-                 transition-colors shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
-    >
-      {children}
-    </button>
-  )
-}
-
+// Fila del catálogo. Se carga la cantidad y Enter (o "Agregar") lo suma al pedido.
+// El precio se puede escribir a mano; si no, sale del costo + margen.
 const claseInput =
-  'flex-1 w-0 h-11 text-center text-lg font-bold font-mono border-2 border-gray-200 rounded-xl ' +
-  'focus:outline-none focus:border-primario'
+  'h-11 text-center text-lg font-bold font-mono bg-white border-2 border-borde rounded-lg ' +
+  'focus:outline-none focus:border-primario focus:ring-4 focus:ring-primario/10 placeholder:text-slate-300'
 
-export default function TarjetaProducto({ producto, margen, onCambiarMargen, itemEnPedido, onAgregar, indice }) {
+export default function TarjetaProducto({
+  producto, margen, itemEnPedido, reservaPropia = 0, bloquearSinStock, onAgregar, onNavegar,
+}) {
   const tipo = tipoCarga(producto)
   const costo = costoDe(producto)
-  const precio = precioVenta(costo, margen)
   const sufijo = tipo === 'unidad' ? '/u' : '/kg'
 
-  // Estado de lo que está cargando el operador (como texto, para aceptar "4,5")
-  const [unidadesTxt, setUnidadesTxt] = useState(
-    itemEnPedido ? String(itemEnPedido.unidades || '') : tipo === 'suelto' ? '' : '1'
+  const [cantidadTxt, setCantidadTxt] = useState(
+    itemEnPedido ? String(tipo === 'suelto' ? itemEnPedido.peso_kg : itemEnPedido.unidades).replace('.', ',') : ''
   )
-  const [kgTxt, setKgTxt] = useState(itemEnPedido ? kgATexto(itemEnPedido.peso_kg) : '')
-  const [kgEditado, setKgEditado] = useState(tipo === 'suelto' || !!itemEnPedido?.kg_editado)
+  const [precioManual, setPrecioManual] = useState(itemEnPedido?.precio_manual ?? null)
   const [agregado, setAgregado] = useState(false)
 
-  const unidades = parsearNumero(unidadesTxt) || 0
-  // En 'piezas', si no cargaron el peso real, los kg salen del peso promedio
-  const kgMostrados =
-    tipo === 'piezas' && !kgEditado ? kgATexto(kgEstimados(unidades, producto.peso_promedio_kg)) : kgTxt
-
+  // Lo que se cargaría: en blanco = 1 unidad/pieza; en suelto hay que poner los kg
+  const cantidad = parsearNumero(cantidadTxt)
+  const unidades = tipo === 'suelto' ? 0 : cantidad ?? 1
   const carga = {
     unidades,
-    peso_kg: parsearNumero(kgMostrados) || 0,
-    kg_editado: tipo === 'piezas' && kgEditado,
+    peso_kg: tipo === 'suelto' ? cantidad || 0 : itemEnPedido?.kg_editado && unidades === itemEnPedido.unidades
+      ? itemEnPedido.peso_kg : 0,
+    kg_editado: tipo === 'piezas' && !!itemEnPedido?.kg_editado && unidades === itemEnPedido.unidades,
     markup_pct: margen,
+    precio_manual: precioManual,
   }
-  const vistaPrevia = useMemo(() => crearItem(producto, carga), [producto, unidades, kgMostrados, kgEditado, margen]) // eslint-disable-line react-hooks/exhaustive-deps
-  const stock = stockDisponible(producto)
-  const sinPrecio = !(costo > 0)
-  const sinStock = stock <= 0
-  const puedeAgregar = puedeAgregarse(vistaPrevia)
-  const faltaStock = !sinStock && superaStock(vistaPrevia)
-  // ¿Sumar una pieza/unidad más superaría el stock?
-  const masUnaSupera = superaStock(crearItem(producto, { ...carga, unidades: unidades + 1 }))
-
-  const cambiarUnidades = (delta) => setUnidadesTxt(String(Math.max(0, Math.round(unidades + delta))))
-  const cambiarKg = (delta) => {
-    const actual = parsearNumero(kgMostrados) || 0
-    setKgEditado(true)
-    setKgTxt(kgATexto(Math.max(0, Math.round((actual + delta) * 10) / 10)))
-  }
+  const vista = crearItem(producto, carga, reservaPropia)
+  const disponible = disponibleDe(producto, reservaPropia)
+  const supera = superaStock(vista)
+  const puede = puedeAgregarse(vista, { bloquearSinStock })
+  const precioMargen = precioVenta(costo, margen)
 
   const agregar = () => {
-    if (!puedeAgregar) return
+    if (!puede) return
     onAgregar(carga)
     setAgregado(true)
-    setTimeout(() => setAgregado(false), 1000)
+    setTimeout(() => setAgregado(false), 900)
   }
 
   const alPresionarTecla = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      agregar()
-    }
+    if (e.key === 'Enter') { e.preventDefault(); agregar(); onNavegar?.('buscar') }
+    if (e.key === 'ArrowDown') { e.preventDefault(); onNavegar?.(e.currentTarget, 1) }
+    if (e.key === 'ArrowUp') { e.preventDefault(); onNavegar?.(e.currentTarget, -1) }
   }
 
+  // Línea de stock: discreta; solo resalta cuando falta
+  const textoDisponible = disponible > 0
+    ? `Disp. ${textoCantidadStock(disponible, producto)}`
+    : 'Sin stock'
+  const reservado = Number(producto.reservado) - (Number(reservaPropia) || 0)
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(indice * 0.02, 0.3) }}
-      className={`bg-white rounded-2xl shadow-sm border-2 overflow-hidden flex flex-col
-        ${itemEnPedido ? 'border-secundario/40' : 'border-gray-100'} ${sinStock || sinPrecio ? 'opacity-60' : ''}`}
+    <div
+      className={`flex items-center gap-3 pl-4 pr-3 py-2.5 border-b border-borde last:border-b-0 transition-colors
+        ${itemEnPedido ? 'bg-secundario-suave/60' : 'bg-white hover:bg-fondo/60'}`}
     >
-      {/* Encabezado */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-start gap-2">
-          <p className="flex-1 text-base font-bold text-texto leading-tight line-clamp-2 min-h-[2.5rem]">
-            {producto.denominacion}
-          </p>
-          <span className={`shrink-0 text-xs font-bold px-2 py-1 rounded-lg
-            ${tipo === 'unidad' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-            {tipo === 'unidad' ? 'x unidad' : 'x kg'}
+      {/* Producto */}
+      <div className="flex-1 min-w-0">
+        <p className="font-bold text-texto leading-snug line-clamp-2" title={producto.denominacion}>
+          {itemEnPedido && <Check className="inline w-4 h-4 mr-1 -mt-0.5 text-secundario" strokeWidth={3} />}
+          {producto.denominacion}
+        </p>
+        <p className="text-sm text-texto-suave truncate">
+          {producto.marca && <span>{producto.marca} · </span>}
+          <span className={disponible > 0 ? '' : bloquearSinStock ? 'text-peligro font-semibold' : 'text-aviso font-semibold'}>
+            {textoDisponible}
           </span>
-        </div>
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {producto.marca && <span className="text-sm text-texto-suave">{producto.marca}</span>}
-          {sinPrecio && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-peligro">
-              Sin precio — cargá el costo en Lista de Precios
-            </span>
-          )}
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full
-            ${sinStock ? 'bg-red-100 text-peligro' : 'bg-emerald-100 text-emerald-700'}`}>
-            {sinStock ? 'Sin stock' : `Stock: ${textoStock(producto)}`}
-          </span>
-          {itemEnPedido && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-secundario">
-              En el pedido
-            </span>
-          )}
-        </div>
+          {reservado > 0.0005 && <span> · {textoCantidadStock(reservado, producto)} precargado</span>}
+          {tipo === 'piezas' && <span> · ≈ {formatearKg(producto.peso_promedio_kg)} c/u</span>}
+        </p>
       </div>
 
-      {/* Precio: costo + margen = precio de venta */}
-      <div className="mx-4 mb-3 bg-gray-50 rounded-xl px-3 py-2 flex items-center gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs text-texto-suave">Costo {formatearPrecio(costo)}</p>
-          <p className="text-xl font-extrabold font-mono text-primario leading-tight">
-            {formatearPrecio(precio)}<span className="text-sm text-texto-suave">{sufijo}</span>
-          </p>
-        </div>
-        <label className="flex items-center gap-1 bg-white border-2 border-gray-200 rounded-lg px-2 h-10
-                          focus-within:border-primario" title="Margen sobre el costo">
-          <span className="text-sm font-bold text-texto-suave">+</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={margen === 0 ? '' : margen}
-            placeholder="0"
-            onChange={(e) => {
-              const v = parseFloat(e.target.value)
-              onCambiarMargen(isNaN(v) || v < 0 ? 0 : v)
-            }}
-            className="w-10 text-center text-base font-bold font-mono bg-transparent focus:outline-none"
+      {/* Precio (editable) */}
+      <div className="w-[112px] xl:w-[124px] shrink-0">
+        <div className="relative">
+          <span className="absolute left-2.5 inset-y-0 flex items-center text-sm text-texto-suave pointer-events-none">$</span>
+          <InputDecimal
+            valor={precioManual ?? (precioMargen || null)}
+            placeholder="Precio"
+            formato={formatearImporte}
+            onConfirmar={(n) => setPrecioManual(n !== null && Math.abs(n - precioMargen) > 0.004 ? precioManualValido(n) : null)}
+            title="Precio de venta. Escribilo para cambiarlo solo en este pedido."
+            className={`w-full h-11 pl-6 pr-9 text-right font-bold font-mono rounded-lg border-2 bg-white
+              focus:outline-none focus:border-primario focus:ring-4 focus:ring-primario/10
+              ${precioManual ? 'border-aviso/50 text-aviso' : 'border-transparent hover:border-borde text-texto'}
+              ${!(vista.precio_venta > 0) ? 'border-peligro/40' : ''}`}
           />
-          <Percent className="w-4 h-4 text-texto-suave" />
-        </label>
-      </div>
-
-      {/* Cantidades según cómo se vende el producto */}
-      <div className="px-4 pb-3 space-y-2">
-        {tipo !== 'suelto' && (
-          <div>
-            <p className="text-sm text-texto-suave mb-1 font-semibold">
-              {tipo === 'piezas' ? 'Piezas' : 'Unidades'}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <BotonPaso label="Restar" onClick={() => cambiarUnidades(-1)} disabled={unidades <= 0}>
-                <Minus className="w-5 h-5 text-texto" />
-              </BotonPaso>
-              <input
-                inputMode="numeric"
-                value={unidadesTxt}
-                onChange={(e) => setUnidadesTxt(e.target.value.replace(/[^\d]/g, ''))}
-                onKeyDown={alPresionarTecla}
-                onFocus={(e) => e.target.select()}
-                disabled={sinStock}
-                className={claseInput}
-              />
-              <BotonPaso label="Sumar" onClick={() => cambiarUnidades(1)} disabled={sinStock || masUnaSupera}>
-                <Plus className="w-5 h-5 text-texto" />
-              </BotonPaso>
-            </div>
-          </div>
-        )}
-
-        {tipo !== 'unidad' && (
-          <div>
-            <p className="text-sm text-texto-suave mb-1 font-semibold flex justify-between">
-              <span>Kilos</span>
-              {tipo === 'piezas' && (
-                <span className="font-normal">
-                  {kgEditado ? (
-                    <button
-                      type="button"
-                      onClick={() => { setKgEditado(false); setKgTxt('') }}
-                      className="text-primario underline"
-                    >
-                      volver a estimado
-                    </button>
-                  ) : (
-                    `≈ ${formatearKg(producto.peso_promedio_kg)} c/u`
-                  )}
-                </span>
-              )}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <BotonPaso label="Restar kilos" onClick={() => cambiarKg(-0.5)}>
-                <Minus className="w-5 h-5 text-texto" />
-              </BotonPaso>
-              <input
-                inputMode="decimal"
-                value={kgMostrados}
-                placeholder="0,0"
-                onChange={(e) => {
-                  setKgEditado(true)
-                  setKgTxt(e.target.value.replace(/[^\d.,]/g, ''))
-                }}
-                onKeyDown={alPresionarTecla}
-                onFocus={(e) => e.target.select()}
-                disabled={sinStock}
-                className={`${claseInput} ${tipo === 'piezas' && !kgEditado ? 'text-texto-suave' : ''}`}
-              />
-              <BotonPaso label="Sumar kilos" onClick={() => cambiarKg(0.5)} disabled={sinStock}>
-                <Plus className="w-5 h-5 text-texto" />
-              </BotonPaso>
-            </div>
-          </div>
-        )}
-
-        {faltaStock && (
-          <p className="flex items-center gap-1 text-sm font-bold text-peligro">
-            <AlertTriangle className="w-4 h-4" /> Solo hay {textoStock(producto)}
-          </p>
-        )}
-      </div>
-
-      {/* Subtotal + agregar */}
-      <div className="mt-auto flex items-center gap-2 px-4 pb-4">
-        <div className="flex-1">
-          <p className="text-xs text-texto-suave">Subtotal</p>
-          <p className="text-lg font-extrabold font-mono text-texto">{formatearPrecio(vistaPrevia.subtotal)}</p>
+          <span className="absolute right-2 inset-y-0 flex items-center text-xs text-texto-suave pointer-events-none">{sufijo}</span>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={agregar}
-          disabled={!puedeAgregar}
-          className={`h-12 px-5 rounded-xl font-bold text-base transition-colors shrink-0 flex items-center gap-1.5
-            disabled:bg-gray-200 disabled:text-texto-suave disabled:cursor-not-allowed
-            ${agregado ? 'bg-secundario text-white' : 'bg-primario text-white hover:bg-blue-700'}`}
-        >
-          {agregado ? <><Check className="w-5 h-5" /> Listo</> : sinPrecio ? 'Sin precio' : sinStock ? 'Sin stock' : itemEnPedido ? 'Actualizar' : 'Agregar'}
-        </motion.button>
+        <p className="text-[11px] text-right pr-1 h-4 leading-4">
+          {precioManual ? (
+            <button type="button" onClick={() => setPrecioManual(null)} className="text-aviso font-semibold hover:underline">
+              <RotateCcw className="inline w-3 h-3 -mt-0.5" /> a mano
+            </button>
+          ) : costo > 0 ? (
+            <span className="text-texto-suave">costo {formatearPrecio(costo)}</span>
+          ) : (
+            <span className="text-peligro font-semibold">sin costo: poné el precio</span>
+          )}
+        </p>
       </div>
-    </motion.div>
+
+      {/* Cantidad */}
+      <div className="w-[112px] xl:w-[128px] shrink-0">
+        <div className="flex items-center gap-2">
+          <input
+            data-cantidad
+            inputMode={tipo === 'suelto' ? 'decimal' : 'numeric'}
+            value={cantidadTxt}
+            placeholder={tipo === 'suelto' ? '0,0' : '1'}
+            onChange={(e) => setCantidadTxt(e.target.value.replace(tipo === 'suelto' ? /[^\d.,]/g : /[^\d]/g, ''))}
+            onKeyDown={alPresionarTecla}
+            onFocus={(e) => e.target.select()}
+            disabled={bloquearSinStock && disponible <= 0}
+            className={`${claseInput} w-16 xl:w-[72px] disabled:bg-fondo disabled:text-texto-suave`}
+          />
+          <span className="text-sm font-semibold text-texto-suave">
+            {tipo === 'unidad' ? 'u' : tipo === 'piezas' ? 'pzas' : 'kg'}
+          </span>
+        </div>
+        <p className={`text-[11px] h-4 leading-4 pl-1 ${supera ? (bloquearSinStock ? 'text-peligro font-semibold' : 'text-aviso font-semibold') : 'text-texto-suave'}`}>
+          {supera && unidades + (cantidad || 0) > 0
+            ? `${bloquearSinStock ? 'No alcanza' : 'Supera'}: hay ${textoCantidadStock(Math.max(0, disponible), producto)}`
+            : tipo === 'piezas' ? `≈ ${formatearKg(vista.peso_kg)}` : ''}
+        </p>
+      </div>
+
+      {/* Agregar */}
+      <button
+        type="button"
+        onClick={agregar}
+        disabled={!puede}
+        className={`w-[88px] xl:w-[100px] h-11 -mt-4 shrink-0 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-colors
+          disabled:bg-fondo disabled:text-slate-400 disabled:cursor-not-allowed
+          ${agregado ? 'bg-secundario text-white' : itemEnPedido ? 'bg-white border-2 border-secundario/40 text-secundario hover:bg-secundario-suave' : 'bg-primario text-white hover:bg-primario-oscuro'}`}
+      >
+        {agregado ? <><Check className="w-4 h-4" strokeWidth={3} /> Listo</> : itemEnPedido ? 'Cambiar' : 'Agregar'}
+      </button>
+    </div>
   )
 }

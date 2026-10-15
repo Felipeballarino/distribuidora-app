@@ -1,164 +1,116 @@
-import { useState, useEffect } from 'react'
-import { Search, ShoppingCart, ArrowRight, User, X, Percent } from 'lucide-react'
+import { useRef } from 'react'
+import { Search } from 'lucide-react'
 import { useProductos } from '../../hooks/useProductos'
 import usePedidoStore from '../../store/pedidoStore'
 import { CATEGORIAS } from '../../lib/categorias'
-import { formatearPrecio } from '../../lib/utils'
 import TarjetaProducto from './TarjetaProducto'
+import ResumenPedido from '../ResumenPedido'
 
-const MARGENES_RAPIDOS = [0, 10, 15, 20, 25, 30]
-
+// Pantalla de carga: catálogo a la izquierda, pedido siempre visible a la derecha.
+// Teclado: escribir → Enter (va al primer producto) → cantidad → Enter (agrega y vuelve a buscar).
 export default function SelectorProducto() {
   const { productos, cargando, categoriaActiva, buscar, cargarPorCategoria } = useProductos()
-  const cliente = usePedidoStore((s) => s.cliente)
   const items = usePedidoStore((s) => s.items)
   const margenPedido = usePedidoStore((s) => s.margenPedido)
-  const setMargenPedido = usePedidoStore((s) => s.setMargenPedido)
+  const reservasPropias = usePedidoStore((s) => s.reservasPropias)
+  const bloquearSinStock = usePedidoStore((s) => s.bloquearSinStock)
   const agregarItem = usePedidoStore((s) => s.agregarItem)
-  const irA = usePedidoStore((s) => s.irA)
-  const nuevoPedido = usePedidoStore((s) => s.nuevoPedido)
-  const total = usePedidoStore((s) => s.getTotal())
+  const buscadorRef = useRef(null)
+  const listaRef = useRef(null)
 
-  // Margen distinto al del pedido para productos puntuales
-  const [margenesPropios, setMargenesPropios] = useState({})
-  const [confirmandoCancelar, setConfirmandoCancelar] = useState(false)
+  const camposCantidad = () => [...(listaRef.current?.querySelectorAll('[data-cantidad]:not(:disabled)') || [])]
 
-  // Al cambiar el margen del pedido se descartan los márgenes puntuales
-  useEffect(() => { setMargenesPropios({}) }, [margenPedido])
-
-  const margenDe = (cod) => {
-    if (margenesPropios[cod] !== undefined) return margenesPropios[cod]
-    const enPedido = items.find((i) => i.cod_articulo === cod)
-    return enPedido ? enPedido.markup_pct : margenPedido
-  }
-
-  const cancelar = () => {
-    if (items.length > 0 && !confirmandoCancelar) {
-      setConfirmandoCancelar(true)
-      setTimeout(() => setConfirmandoCancelar(false), 3000)
+  // Mover el foco entre el buscador y las cantidades de cada producto
+  const navegar = (desde, paso) => {
+    if (desde === 'buscar') {
+      buscadorRef.current?.focus()
+      buscadorRef.current?.select()
       return
     }
-    nuevoPedido()
+    const campos = camposCantidad()
+    const i = campos.indexOf(desde)
+    if (i + paso < 0) return navegar('buscar')
+    campos[i + paso]?.focus()
+  }
+
+  const enBuscador = (e) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      camposCantidad()[0]?.focus()
+    }
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-sm text-texto-suave">Pedido para</p>
-            <p className="text-xl font-bold text-texto flex items-center gap-2 truncate">
-              <User className="w-5 h-5 text-primario shrink-0" />
-              {cliente?.razon_social}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={cancelar}
-              className={`flex items-center gap-2 border-2 px-4 h-12 rounded-xl font-semibold transition-colors
-                ${confirmandoCancelar
-                  ? 'border-peligro bg-peligro text-white'
-                  : 'border-gray-200 text-texto-suave hover:border-peligro hover:text-peligro'}`}
-            >
-              <X className="w-4 h-4" />
-              {confirmandoCancelar ? '¿Borrar el pedido? Tocá de nuevo' : 'Cancelar'}
-            </button>
-            <button
-              onClick={() => irA('resumen')}
-              disabled={items.length === 0}
-              className="flex items-center gap-2 bg-primario text-white px-5 h-12 rounded-xl font-bold text-lg
-                         disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
-            >
-              <ShoppingCart className="w-5 h-5" />
-              {items.length > 0 ? `Ver pedido (${items.length}) · ${formatearPrecio(total)}` : 'Ver pedido'}
-              <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Margen del pedido */}
-        <div className="mt-4 flex items-center gap-2 flex-wrap">
-          <span className="text-base font-semibold text-texto-suave flex items-center gap-1 mr-1">
-            <Percent className="w-4 h-4" /> Margen del pedido:
-          </span>
-          {MARGENES_RAPIDOS.map((pct) => (
-            <button
-              key={pct}
-              onClick={() => setMargenPedido(pct)}
-              className={`px-4 h-10 rounded-lg border-2 font-bold text-base transition-colors
-                ${margenPedido === pct
-                  ? 'border-primario bg-primario text-white'
-                  : 'border-gray-200 bg-white text-texto-suave hover:border-primario hover:text-primario'}`}
-            >
-              {pct === 0 ? 'Sin margen' : `${pct}%`}
-            </button>
-          ))}
-        </div>
-
-        {/* Búsqueda y filtros */}
-        <div className="mt-3 flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[240px]">
-            <Search className="absolute left-3 inset-y-0 my-auto w-5 h-5 text-texto-suave" />
+    <div className="h-full flex">
+      {/* Catálogo */}
+      <section className="flex-1 min-w-0 flex flex-col">
+        <div className="px-6 pt-5 pb-3 bg-fondo">
+          <div className="relative">
+            <Search className="absolute left-4 inset-y-0 my-auto w-5 h-5 text-texto-suave" />
             <input
+              ref={buscadorRef}
               type="text"
               autoFocus
-              placeholder="Buscar producto o marca... (ej: cremoso, don bosco)"
+              placeholder="Buscar producto, marca o código…  (Enter para ir a la cantidad)"
               onChange={(e) => buscar(e.target.value)}
-              className="w-full pl-10 pr-4 h-12 text-lg border-2 border-gray-200 rounded-xl
-                         focus:outline-none focus:border-primario transition-all"
+              onKeyDown={enBuscador}
+              className="w-full pl-12 pr-4 h-12 text-lg bg-white border-2 border-borde rounded-xl
+                         focus:outline-none focus:border-primario focus:ring-4 focus:ring-primario/10"
             />
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
             {['Todos', ...CATEGORIAS].map((cat) => (
               <button
                 key={cat}
                 onClick={() => cargarPorCategoria(cat)}
-                className={`px-4 h-12 rounded-xl font-semibold text-base transition-colors
-                  ${categoriaActiva === cat
-                    ? 'bg-primario text-white'
-                    : 'bg-gray-100 text-texto-suave hover:bg-gray-200'}`}
+                className={`shrink-0 px-3.5 h-9 rounded-lg text-[15px] font-semibold transition-colors
+                  ${categoriaActiva === cat ? 'bg-texto text-white' : 'bg-white border border-borde text-texto-suave hover:text-texto'}`}
               >
                 {cat}
               </button>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* Lista de productos */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {cargando && (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-primario border-t-transparent rounded-full animate-spin" />
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="flex items-center gap-3 pl-4 pr-3 pb-1.5 text-xs font-bold text-texto-suave uppercase tracking-wide">
+            <span className="flex-1">Producto</span>
+            <span className="w-[112px] xl:w-[124px] text-right pr-2">Precio</span>
+            <span className="w-[112px] xl:w-[128px]">Cantidad</span>
+            <span className="w-[88px] xl:w-[100px]" />
           </div>
-        )}
-
-        {!cargando && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {productos.map((producto, i) => {
+          <div ref={listaRef} className="bg-white rounded-xl border border-borde shadow-tarjeta overflow-hidden">
+            {cargando && productos.length === 0 && (
+              <div className="flex justify-center py-12">
+                <div className="w-7 h-7 border-[3px] border-primario border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {!cargando && productos.length === 0 && (
+              <p className="text-center text-texto-suave text-lg py-12">No se encontraron productos</p>
+            )}
+            {productos.map((producto) => {
               const cod = producto.cod_articulo
-              const itemEnPedido = items.find((it) => it.cod_articulo === cod)
+              const item = items.find((it) => it.cod_articulo === cod)
               return (
                 <TarjetaProducto
-                  // la key cambia al agregar, para que la tarjeta tome los valores del pedido
-                  key={`${cod}-${itemEnPedido ? 'en' : 'no'}`}
+                  // la key cambia cuando cambia el ítem del pedido, para que la fila muestre lo cargado
+                  key={`${cod}-${item ? `${item.unidades}-${item.peso_kg}-${item.precio_manual}-${item.markup_pct}` : 'no'}`}
                   producto={producto}
-                  indice={i}
-                  margen={margenDe(cod)}
-                  onCambiarMargen={(pct) => setMargenesPropios((prev) => ({ ...prev, [cod]: pct }))}
-                  itemEnPedido={itemEnPedido}
+                  margen={item ? item.markup_pct : margenPedido}
+                  itemEnPedido={item}
+                  reservaPropia={reservasPropias[cod]}
+                  bloquearSinStock={bloquearSinStock}
                   onAgregar={(carga) => agregarItem(producto, carga)}
+                  onNavegar={navegar}
                 />
               )
             })}
           </div>
-        )}
+        </div>
+      </section>
 
-        {!cargando && productos.length === 0 && (
-          <p className="text-center text-texto-suave text-lg py-12">No se encontraron productos</p>
-        )}
-      </div>
+      {/* Pedido */}
+      <ResumenPedido />
     </div>
   )
 }

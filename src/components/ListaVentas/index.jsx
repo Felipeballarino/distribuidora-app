@@ -25,10 +25,10 @@ function ModalComprobante({ comprobante, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col"
       >
         {/* Header modal */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-borde flex-shrink-0">
           <div>
             <p className="text-xs text-texto-suave font-semibold">Comprobante</p>
             <p className="text-xl font-extrabold font-mono text-primario">N° {comprobante.numero}</p>
@@ -37,7 +37,7 @@ function ModalComprobante({ comprobante, onCerrar }) {
             <button
               onClick={handleImprimir}
               disabled={imprimiendo}
-              className="flex items-center gap-2 px-4 py-2.5 bg-primario text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primario text-white rounded-xl font-bold text-sm hover:bg-primario-oscuro transition-colors disabled:opacity-60"
             >
               {imprimiendo
                 ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -46,7 +46,7 @@ function ModalComprobante({ comprobante, onCerrar }) {
             </button>
             <button
               onClick={onCerrar}
-              className="p-2.5 border-2 border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              className="p-2.5 border-2 border-borde rounded-xl hover:bg-fondo transition-colors"
             >
               <X className="w-4 h-4 text-texto-suave" />
             </button>
@@ -88,7 +88,7 @@ function ModalComprobante({ comprobante, onCerrar }) {
             <p className="text-xs font-bold text-texto-suave uppercase tracking-wide mb-2">
               Detalle — {comprobante.items.length} {comprobante.items.length === 1 ? 'producto' : 'productos'}
             </p>
-            <div className="rounded-xl overflow-hidden border border-gray-100">
+            <div className="rounded-xl overflow-hidden border border-borde">
               <DetalleItems items={comprobante.items} compacta />
             </div>
           </div>
@@ -124,7 +124,7 @@ function ModalAnular({ venta, onConfirmar, onCerrar }) {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center"
+        className="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full text-center"
       >
         <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
           <Ban className="w-8 h-8 text-peligro" />
@@ -135,13 +135,13 @@ function ModalAnular({ venta, onConfirmar, onCerrar }) {
         </p>
         {error && <p className="text-peligro font-bold mb-4">{error}</p>}
         <div className="flex gap-3">
-          <button onClick={onCerrar} className="flex-1 h-12 border-2 border-gray-200 rounded-2xl font-bold hover:bg-gray-50">
+          <button onClick={onCerrar} className="flex-1 h-12 border-2 border-borde rounded-xl font-bold hover:bg-fondo">
             Volver
           </button>
           <button
             onClick={confirmar}
             disabled={anulando}
-            className="flex-1 h-12 bg-peligro text-white rounded-2xl font-bold hover:bg-red-700 disabled:opacity-60"
+            className="flex-1 h-12 bg-peligro text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-60"
           >
             {anulando ? 'Anulando...' : 'Anular'}
           </button>
@@ -188,7 +188,7 @@ export default function ListaVentas() {
   }
 
   return (
-    <div className="h-full flex flex-col p-6 bg-fondo">
+    <div className="h-full flex flex-col px-8 py-6">
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
@@ -207,12 +207,12 @@ export default function ListaVentas() {
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
           placeholder="Buscar por número, cliente o código..."
-          className="w-full pl-12 pr-4 py-3 text-base rounded-2xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primario"
+          className="w-full pl-12 pr-4 py-3 text-base rounded-xl border border-borde bg-white focus:outline-none focus:ring-2 focus:ring-primario"
         />
       </div>
 
       {/* Lista */}
-      <div className="flex-1 overflow-auto bg-white rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex-1 overflow-auto bg-white rounded-xl shadow-tarjeta border border-borde">
         {cargando ? (
           <div className="flex items-center justify-center h-48 text-texto-suave text-lg">Cargando...</div>
         ) : filtrados.length === 0 ? (
@@ -224,7 +224,7 @@ export default function ListaVentas() {
           </div>
         ) : (
           <table className="w-full text-left">
-            <thead className="bg-fondo border-b border-gray-100 sticky top-0 z-10">
+            <thead className="bg-fondo border-b border-borde sticky top-0 z-10">
               <tr>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">N° Comp.</th>
                 <th className="px-4 py-3 text-xs font-bold text-texto-suave uppercase tracking-wide">Fecha</th>
@@ -238,7 +238,7 @@ export default function ListaVentas() {
               {filtrados.map((v, i) => (
                 <Fragment key={v.id}>
                   <tr
-                    className={`border-b border-gray-50 hover:bg-blue-50/40 transition-colors cursor-pointer
+                    className={`border-b border-borde/60 hover:bg-blue-50/40 transition-colors cursor-pointer
                       ${v.anulado ? 'opacity-50' : i % 2 === 0 ? '' : 'bg-gray-50/40'}`}
                     onClick={() => toggleExpandir(v.id)}
                   >
@@ -293,7 +293,7 @@ export default function ListaVentas() {
                       <td colSpan={6} className="px-6 py-3">
                         <div className="rounded-xl overflow-hidden border border-blue-100 text-sm">
                           <DetalleItems items={v.items} compacta />
-                          <div className="flex justify-end gap-6 px-4 py-2 bg-gray-50 text-xs font-semibold text-texto-suave border-t border-gray-100">
+                          <div className="flex justify-end gap-6 px-4 py-2 bg-gray-50 text-xs font-semibold text-texto-suave border-t border-borde">
                             <span className="text-base font-extrabold text-texto">
                               Total: <span className="font-mono">{formatearPrecio(totalComprobante(v))}</span>
                             </span>

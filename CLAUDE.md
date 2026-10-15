@@ -21,18 +21,38 @@ El operador busca un cliente, selecciona productos con cantidades en kg/unidades
 - **Sin IVA en ningún lado.** El total es la suma de subtotales.
 - **Precios:** cada producto tiene un COSTO (columna `precio_neto`). El precio de venta = costo × (1 + margen%).
   El operador elige el margen del pedido (0/10/15/20/25/30) o lo cambia por producto.
-  **El precio NO se edita a mano**, solo el porcentaje.
+  **El precio de venta también se puede escribir a mano** por producto y por pedido (`precio_manual` en el ítem):
+  pisa el margen y se puede volver al margen. Sirve también para vender algo sin costo cargado.
+  **Aumento masivo de costos** por marca o categoría (Precios → "Aumentar costos"), queda en `aumentos_precios`.
 - **Unidades y kg** (`src/lib/pedido.js`, con tests en `tests/`):
   - `unidad_medida = 'unid'` → se cobra por unidad; solo se cargan unidades.
   - `unidad_medida = 'kg'` + `peso_promedio_kg` → piezas: kg = piezas × peso promedio, editable con el peso real.
   - `unidad_medida = 'kg'` sin peso promedio → suelto: solo se cargan kg.
-  - **Pesan antes de imprimir**: el kg real se corrige en la carga o en el resumen.
-- **Stock (control estricto):** todo producto tiene stock; sin dato = 0 = no se puede vender.
-  No se puede cargar más de lo que hay (se valida en pantalla y otra vez en la transacción al confirmar).
-  El stock está en la unidad en que se cobra (kg o unidades). Cada cambio queda en `movimientos_stock`
-  (inicial, ingreso, venta, ajuste, anulación) y `precios.stock` es el saldo, actualizado en la misma transacción.
-  El stock NO se edita desde el producto ni se pisa al reimportar el Excel (la columna Stock solo vale para productos nuevos).
+  - **Pesan antes de imprimir**: el kg real se corrige en la carga o en el resumen. El peso real cambia lo que se
+    cobra, no el stock (que va en piezas).
+- **Stock:** todo producto tiene stock (sin dato = 0). Se cuenta como se guarda en el galpón, NO como se cobra:
+  por unidad → unidades; por kg CON peso promedio (barras, hormas) → **piezas**; por kg SIN peso promedio
+  (fraccionado) → kg. Cada ítem guarda `cantidad_stock` (lo que descuenta). Si a un producto le agregan o sacan
+  el peso promedio, el stock se convierte solo. Migración única kg→piezas: `migrarStockAPiezas` (config `stock_en_piezas`).
+  Anular devuelve exactamente lo que descontaron los movimientos 'venta' de ese pedido.
+  Cada cambio queda en `movimientos_stock` (inicial, ingreso, venta, ajuste, anulación) y `precios.stock` es el saldo
+  físico, actualizado en la misma transacción. No se edita desde el producto ni se pisa al reimportar el Excel.
   Para cambiarlo: sección Stock (Ingresar mercadería / Ajustar por conteo). Anular un pedido devuelve el stock.
+  **Bloqueo configurable** (`config.bloquear_sin_stock`, Configuración → Stock). Por pedido del cliente arranca
+  APAGADO: se puede vender sin stock y el saldo puede quedar negativo (se corrige con un ajuste por conteo).
+  Activado: no se puede cargar más de lo disponible (se valida en pantalla y otra vez en la transacción).
+- **Precargas** (`precargas` + `reservas`): el empleado arma el pedido el día anterior y a la mañana, al pesar y
+  cargar el camión, lo termina (kg reales) y lo confirma. Precargar NO numera, NO imprime y NO descuenta stock,
+  pero RESERVA: disponible = stock − reservado. Al confirmar se descuenta el stock y se borra la reserva
+  (todo en `emitirComprobante` con `precarga_id`). Descartar libera la reserva.
+- **Boleta** (`src/lib/imprimirRemito.js`): hoja A4 con troquel al medio; arriba ORIGINAL y abajo DUPLICADO,
+  iguales. Hasta `FILAS_POR_HOJA` (17) productos por mitad; si hay más, más hojas ("Hoja 1 de 2", "Sigue en la
+  hoja 2") y el total en la última. Filas de alto fijo (nombres largos con "…") para que nada pase el troquel.
+- **Búsqueda** de clientes y productos por palabras y sin acentos ("jamon coc" → "Jamón Cocido"): `electron/db/busqueda.js`.
+- **Diseño (oct 2026):** menú lateral; la carga es UNA pantalla: catálogo en filas a la izquierda
+  (`SelectorProducto` + `TarjetaProducto`) y el pedido siempre visible a la derecha (`ResumenPedido`), con
+  Precargar / Confirmar. Teclado: buscar → Enter → cantidad → Enter (agrega y vuelve al buscador), flechas entre filas.
+  Fuente Inter incluida en `src/assets/fonts` (no depende de internet); números con cifras tabulares, sin monoespaciada.
 - Usuarios: el dueño, su padre y operadores con muy poca experiencia (ej. una persona de 45 años que nunca usó computadora).
   Carga de 40–60 clientes por día → priorizar velocidad y teclado.
 - `node-sqlite3-wasm`: usar `db.all/get/run` (los `prepare()` hay que finalizarlos a mano).
